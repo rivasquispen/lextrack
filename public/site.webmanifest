@@ -1,0 +1,14 @@
+{
+    "name": "Lextrack",
+    "short_name": "Lextrack",
+    "icons": [
+        {
+            "src": "/assets/images/favicon.png",
+            "sizes": "192x192",
+            "type": "image/png"
+        }
+    ],
+    "theme_color": "#043965",
+    "background_color": "#043965",
+    "display": "standalone"
+}
