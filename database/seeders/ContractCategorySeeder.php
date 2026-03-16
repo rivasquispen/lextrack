@@ -43,7 +43,6 @@ class ContractCategorySeeder extends Seeder
     public function run(): void
     {
         $usedCategorySlugs = [];
-        $usedSubcategorySlugs = [];
 
         foreach ($this->categories as $categoryName => $subcategories) {
             $categorySlug = $this->uniqueSlug($categoryName, $usedCategorySlugs);
@@ -54,11 +53,9 @@ class ContractCategorySeeder extends Seeder
             );
 
             foreach ($subcategories as $subName) {
-                $subSlug = $this->uniqueSlug($subName, $usedSubcategorySlugs);
-
                 Subcategory::updateOrCreate(
-                    ['slug' => $subSlug],
-                    ['nombre' => $subName, 'category_id' => $category->id]
+                    ['nombre' => $subName, 'category_id' => $category->id],
+                    []
                 );
             }
         }

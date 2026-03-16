@@ -77,7 +77,8 @@ class MicrosoftAuthController extends Controller
         }
 
         if (Schema::hasColumn('users', 'active') && $isNewUser) {
-            $user->active = false;
+            $existingUsers = User::count();
+            $user->active = $existingUsers === 0;
         }
 
         $user->save();

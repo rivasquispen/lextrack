@@ -6,7 +6,6 @@ use App\Http\Controllers\Controller;
 use App\Models\Subcategory;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
-use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
 
 class SubcategoryController extends Controller
@@ -22,7 +21,6 @@ class SubcategoryController extends Controller
 
         Subcategory::create([
             'nombre' => $data['nombre'],
-            'slug' => Str::slug($data['nombre']),
             'category_id' => $data['category_id'],
         ]);
 
@@ -40,7 +38,6 @@ class SubcategoryController extends Controller
 
         $subcategory->update([
             'nombre' => $data['nombre'],
-            'slug' => Str::slug($data['nombre']),
             'category_id' => $data['category_id'],
         ]);
 
