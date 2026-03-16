@@ -6,7 +6,6 @@ use App\Http\Controllers\Controller;
 use App\Models\Subcategory;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
-use Illuminate\Validation\Rule;
 
 class SubcategoryController extends Controller
 {
@@ -32,7 +31,7 @@ class SubcategoryController extends Controller
         $this->authorize('manage-categories');
 
         $data = $request->validate([
-            'nombre' => ['required', 'string', 'max:150', Rule::unique('subcategories', 'nombre')->ignore($subcategory->id)],
+            'nombre' => ['required', 'string', 'max:150'],
             'category_id' => ['required', 'exists:categories,id'],
         ]);
 
