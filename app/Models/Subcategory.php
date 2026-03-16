@@ -19,7 +19,11 @@ class Subcategory extends Model
             $subcategory->slug = self::buildSlug($subcategory->nombre);
         });
 
-        static::created(function (Subcategory $subcategory): void {
+        static::saved(function (Subcategory $subcategory): void {
+            if (! $subcategory->wasRecentlyCreated) {
+                return;
+            }
+
             $slugWithId = self::buildSlug($subcategory->nombre, (string) $subcategory->id);
 
             if ($subcategory->slug !== $slugWithId) {
