@@ -71,7 +71,7 @@
                                     <select name="company_id" class="mt-1 w-full rounded-xl border-slate-200">
                                         <option value="">Sin empresa asociada</option>
                                         @foreach ($companies as $company)
-                                            <option value="{{ $company->id }}" @selected($department->company_id === $company->id)>{{ $company->nombre }}</option>
+                                            <option value="{{ $company->id }}" @selected($department->company_id == $company->id)>{{ $company->nombre }}</option>
                                         @endforeach
                                     </select>
                                 </div>
