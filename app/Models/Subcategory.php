@@ -19,17 +19,20 @@ class Subcategory extends Model
             $subcategory->slug = self::buildSlug($subcategory->nombre);
         });
 
-        static::saved(function (Subcategory $subcategory): void {
-            if (! $subcategory->wasRecentlyCreated) {
+        static::created(function (Subcategory $subcategory): void {
+            $slugWithId = self::buildSlug($subcategory->nombre, (string) $subcategory->id);
+
+            if ($subcategory->slug === $slugWithId) {
                 return;
             }
 
-            $slugWithId = self::buildSlug($subcategory->nombre, (string) $subcategory->id);
+            static::withoutEvents(function () use ($subcategory, $slugWithId): void {
+                $subcategory->newQuery()
+                    ->whereKey($subcategory->id)
+                    ->update(['slug' => $slugWithId]);
+            });
 
-            if ($subcategory->slug !== $slugWithId) {
-                $subcategory->slug = $slugWithId;
-                $subcategory->saveQuietly();
-            }
+            $subcategory->slug = $slugWithId;
         });
 
         static::updating(function (Subcategory $subcategory): void {
