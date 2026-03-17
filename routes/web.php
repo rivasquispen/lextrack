@@ -32,6 +32,10 @@ Route::get('/', function () {
 
 Route::view('/activacion-pendiente', 'auth.pending-activation')->name('activation.pending');
 
+Route::get('/login', function () {
+    return redirect()->route('auth.microsoft.redirect');
+})->name('login');
+
 Route::middleware('guest')->group(function () {
     Route::get('/auth/microsoft/redirect', [MicrosoftAuthController::class, 'redirect'])->name('auth.microsoft.redirect');
     Route::get('/auth/microsoft/callback', [MicrosoftAuthController::class, 'callback'])->name('auth.microsoft.callback');
