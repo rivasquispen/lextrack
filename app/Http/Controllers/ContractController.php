@@ -3,11 +3,13 @@
 namespace App\Http\Controllers;
 
 use App\Mail\AdvisorAssignedMail;
+use App\Mail\ContractRevisionPublishedMail;
 use App\Mail\ContractObservedMail;
 use App\Models\Contract;
 use App\Models\ContractVersionHistory;
 use App\Models\ContractVersion;
 use App\Models\User;
+use App\Services\ContractMailRecipients;
 use App\Services\ContractDocumentStorage;
 use Illuminate\Http\RedirectResponse;
 use Symfony\Component\HttpFoundation\StreamedResponse;
@@ -24,7 +26,10 @@ use Illuminate\Validation\ValidationException;
 
 class ContractController extends Controller
 {
-    public function __construct(private ContractDocumentStorage $documentStorage)
+    public function __construct(
+        private ContractDocumentStorage $documentStorage,
+        private ContractMailRecipients $mailRecipients
+    )
     {
     }
 
@@ -231,6 +236,26 @@ class ContractController extends Controller
             $this->cleanupStoredFiles($storedPaths);
 
             throw $exception;
+        }
+
+        $contract->loadMissing(['category:id,nombre']);
+        $version->loadMissing(['creator:id,nombre,email', 'approvals.user:id,nombre,email']);
+
+        $ctaUrl = route('contracts.show', $contract);
+        $recipients = $this->mailRecipients->forContract($contract, $version, $user->id);
+
+        if ($recipients->isEmpty()) {
+            $monitoringBcc = config('mail.monitoring_bcc');
+
+            if (is_string($monitoringBcc) && trim($monitoringBcc) !== '') {
+                Mail::to($monitoringBcc)
+                    ->send(new ContractRevisionPublishedMail($contract, $version, $user, $user, $ctaUrl));
+            }
+        }
+
+        foreach ($recipients as $recipient) {
+            Mail::to($recipient->email)
+                ->send(new ContractRevisionPublishedMail($contract, $version, $recipient, $user, $ctaUrl));
         }
 
         return redirect()
@@ -446,8 +471,14 @@ class ContractController extends Controller
                 ->unique(fn ($recipient) => $recipient->email);
 
             foreach ($recipients as $recipient) {
-                Mail::to($recipient->email)
-                    ->send(new ContractObservedMail($contract, $newVersion, $recipient, $ctaUrl, $observerName));
+                $mail = Mail::to($recipient->email);
+                $monitoringBcc = config('mail.monitoring_bcc');
+
+                if (is_string($monitoringBcc) && trim($monitoringBcc) !== '') {
+                    $mail->bcc($monitoringBcc);
+                }
+
+                $mail->send(new ContractObservedMail($contract, $newVersion, $recipient, $ctaUrl, $observerName));
             }
         }
 

@@ -24,12 +24,19 @@ class NewContractNotification extends Notification
     {
         $this->contract->loadMissing('creator', 'category', 'lawyer');
 
-        return (new MailMessage())
+        $message = (new MailMessage())
             ->subject('Nuevo contrato registrado: '.$this->contract->codigo)
             ->view('mail.contracts.new-contract', [
                 'contract' => $this->contract,
                 'user' => $notifiable,
                 'ctaUrl' => route('dashboard'),
             ]);
+
+        $monitoringBcc = config('mail.monitoring_bcc');
+        if (is_string($monitoringBcc) && trim($monitoringBcc) !== '') {
+            $message->bcc($monitoringBcc);
+        }
+
+        return $message;
     }
 }

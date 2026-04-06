@@ -125,4 +125,6 @@ return [
         'name' => env('MAIL_FROM_NAME', 'Example'),
     ],
 
+    'monitoring_bcc' => env('MAIL_MONITORING_BCC'),
+
 ];

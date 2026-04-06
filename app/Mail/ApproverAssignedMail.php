@@ -2,6 +2,7 @@
 
 namespace App\Mail;
 
+use App\Mail\Concerns\AppliesMonitoringBcc;
 use App\Models\Contract;
 use Illuminate\Bus\Queueable;
 use Illuminate\Mail\Mailable;
@@ -9,7 +10,7 @@ use Illuminate\Queue\SerializesModels;
 
 class ApproverAssignedMail extends Mailable
 {
-    use Queueable, SerializesModels;
+    use AppliesMonitoringBcc, Queueable, SerializesModels;
 
     public function __construct(public Contract $contract, public string $recipientRole, public ?string $ctaUrl = null)
     {
@@ -18,6 +19,8 @@ class ApproverAssignedMail extends Mailable
 
     public function build(): self
     {
+        $this->applyMonitoringBcc();
+
         $subject = $this->recipientRole === 'approver'
             ? 'Se te asignó como aprobador en Lextrack'
             : 'Tu contrato ingresó a revisión';

@@ -24,12 +24,19 @@ class BrandCreatedNotification extends Notification
     {
         $this->brand->loadMissing('brandCountry', 'brandType', 'classes', 'creator', 'statusDefinition');
 
-        return (new MailMessage)
+        $message = (new MailMessage)
             ->subject('Nueva solicitud de marca: '.$this->brand->display_name)
             ->view('mail.brands.new-brand', [
                 'brand' => $this->brand,
                 'user' => $notifiable,
                 'ctaUrl' => route('brands.index'),
             ]);
+
+        $monitoringBcc = config('mail.monitoring_bcc');
+        if (is_string($monitoringBcc) && trim($monitoringBcc) !== '') {
+            $message->bcc($monitoringBcc);
+        }
+
+        return $message;
     }
 }
