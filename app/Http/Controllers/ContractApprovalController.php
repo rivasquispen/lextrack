@@ -7,6 +7,7 @@ use App\Mail\ContractApprovedMail;
 use App\Models\Approval;
 use App\Models\Contract;
 use App\Models\User;
+use App\Services\ContractMailRecipients;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -15,6 +16,10 @@ use Illuminate\Validation\ValidationException;
 
 class ContractApprovalController extends Controller
 {
+    public function __construct(private ContractMailRecipients $mailRecipients)
+    {
+    }
+
     public function update(Request $request, Contract $contract): RedirectResponse
     {
         $this->ensureLawyerAccess($request->user(), $contract);
@@ -116,6 +121,19 @@ class ContractApprovalController extends Controller
                 Mail::to($contract->creator->email)
                     ->send(new ApproverAssignedMail($contract, 'creator', $ctaUrl));
             }
+
+            $lawyers = User::role('abogado')
+                ->whereNotIn('id', $newApproverIds->push($contract->creator?->id)->filter()->all())
+                ->get(['id', 'nombre', 'email']);
+
+            foreach ($lawyers as $lawyer) {
+                if (! $lawyer->email) {
+                    continue;
+                }
+
+                Mail::to($lawyer->email)
+                    ->send(new ApproverAssignedMail($contract, 'lawyer', $ctaUrl));
+            }
         }
 
         return back()->with('status', 'Flujo de aprobaciones y firmantes actualizado correctamente.');
@@ -173,11 +191,12 @@ class ContractApprovalController extends Controller
 
         if ($contractJustApproved) {
             $contract->loadMissing(['creator:id,nombre,email', 'lawyer:id,nombre,email', 'advisor:id,nombre,email', 'category:id,nombre']);
+            $version = $contract->versions()
+                ->with(['approvals.user:id,nombre,email'])
+                ->orderByDesc('numero_version')
+                ->first();
             $ctaUrl = route('contracts.show', $contract);
-
-            $recipients = collect([$contract->creator, $contract->lawyer, $contract->advisor])
-                ->filter(fn ($recipient) => $recipient && $recipient->email)
-                ->unique(fn ($recipient) => $recipient->id ?? $recipient->email);
+            $recipients = $this->mailRecipients->forContract($contract, $version, $user->id);
 
             foreach ($recipients as $recipient) {
                 Mail::to($recipient->email)->send(new ContractApprovedMail($contract, $recipient, $ctaUrl));

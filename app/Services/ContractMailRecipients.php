@@ -22,9 +22,13 @@ class ContractMailRecipients
             $version->loadMissing(['approvals.user:id,nombre,email']);
         }
 
-        $recipients = collect([$contract->creator, $contract->lawyer, $contract->advisor])
+        $lawyers = User::role('abogado')
+            ->get(['id', 'nombre', 'email']);
+
+        return collect([$contract->creator, $contract->lawyer, $contract->advisor])
             ->merge($version?->approvals?->pluck('user') ?? collect())
             ->merge($contract->signers->pluck('user'))
+            ->merge($lawyers)
             ->filter(function ($recipient) use ($excludeUserId) {
                 if (! $recipient || ! $recipient->email) {
                     return false;
@@ -38,41 +42,5 @@ class ContractMailRecipients
             })
             ->unique(fn ($recipient) => strtolower((string) $recipient->email))
             ->values();
-
-        if ($this->shouldIncludeLawyers($contract, $version)) {
-            $lawyers = User::role('abogado')
-                ->get(['id', 'nombre', 'email']);
-
-            $recipients = $recipients
-                ->merge($lawyers)
-                ->filter(function ($recipient) use ($excludeUserId) {
-                    if (! $recipient || ! $recipient->email) {
-                        return false;
-                    }
-
-                    if ($excludeUserId && (int) $recipient->id === $excludeUserId) {
-                        return false;
-                    }
-
-                    return true;
-                })
-                ->unique(fn ($recipient) => strtolower((string) $recipient->email))
-                ->values();
-        }
-
-        return $recipients;
-    }
-
-    private function shouldIncludeLawyers(Contract $contract, ?ContractVersion $version = null): bool
-    {
-        if ($contract->lawyer_id || $contract->abogado_id || $contract->asesor_id) {
-            return false;
-        }
-
-        $hasApprovers = $version
-            ? $version->approvals->isNotEmpty()
-            : $contract->approvals()->exists();
-
-        return ! $hasApprovers;
     }
 }

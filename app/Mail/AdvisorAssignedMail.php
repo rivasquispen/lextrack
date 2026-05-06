@@ -24,24 +24,29 @@ class AdvisorAssignedMail extends Mailable
         $subject = match ($this->recipientRole) {
             'advisor' => 'Se te asignó un contrato en Lextrack',
             'creator' => 'Nuevo asesor asignado a tu contrato',
+            'lawyer' => 'Se asignó un asesor a un contrato en Lextrack',
             default => 'Actualización de contrato',
         };
 
         $introLine = match ($this->recipientRole) {
             'advisor' => 'Has sido designado como asesor para este contrato. Revisa los detalles y coordina los siguientes pasos.',
             'creator' => 'Se asignó un asesor a tu contrato para ayudarte en el proceso. Puedes coordinar directamente con él para los ajustes necesarios.',
+            'lawyer' => 'Se asignó un asesor a este contrato. Puedes ingresar para dar seguimiento y mantener visibilidad del flujo.',
             default => 'Hay una actualización relacionada a este contrato.',
         };
 
         $closingLine = match ($this->recipientRole) {
             'advisor' => 'Gracias por apoyar el flujo de contratos. Te avisaremos ante cualquier novedad.',
             'creator' => 'Puedes ingresar al contrato para revisar el avance junto al asesor asignado.',
+            'lawyer' => 'Puedes ingresar al contrato para revisar el avance y las siguientes acciones.',
             default => 'Gracias por usar Lextrack.',
         };
 
-        $recipientName = ($this->recipientRole === 'advisor')
-            ? ($this->contract->advisor->nombre ?? $this->contract->advisor->email ?? '')
-            : ($this->contract->creator->nombre ?? $this->contract->creator->email ?? '');
+        $recipientName = match ($this->recipientRole) {
+            'advisor' => $this->contract->advisor->nombre ?? $this->contract->advisor->email ?? '',
+            'creator' => $this->contract->creator->nombre ?? $this->contract->creator->email ?? '',
+            default => '',
+        };
 
         return $this->subject($subject)
             ->view('mail.contracts.advisor-assigned')

@@ -464,11 +464,7 @@ class ContractController extends Controller
                 ?? 'Equipo legal';
 
             $ctaUrl = route('contracts.versions.show', [$contract, $newVersion]);
-
-            $recipients = collect([$contract->creator, $contract->lawyer, $contract->advisor])
-                ->merge($newVersion->approvals->pluck('user'))
-                ->filter(fn ($recipient) => $recipient && $recipient->email)
-                ->unique(fn ($recipient) => $recipient->email);
+            $recipients = $this->mailRecipients->forContract($contract, $newVersion, $user?->id);
 
             foreach ($recipients as $recipient) {
                 $mail = Mail::to($recipient->email);
@@ -663,6 +659,19 @@ class ContractController extends Controller
         if ($contract->creator && $contract->creator->email) {
             Mail::to($contract->creator->email)
                 ->send(new AdvisorAssignedMail($contract, 'creator', $ctaUrl));
+        }
+
+        $lawyers = User::role('abogado')
+            ->whereNotIn('id', array_filter([$contract->advisor?->id, $contract->creator?->id]))
+            ->get(['id', 'nombre', 'email']);
+
+        foreach ($lawyers as $lawyer) {
+            if (! $lawyer->email) {
+                continue;
+            }
+
+            Mail::to($lawyer->email)
+                ->send(new AdvisorAssignedMail($contract, 'lawyer', $ctaUrl));
         }
 
         return back()->with('status', 'Asesor actualizado correctamente.');
