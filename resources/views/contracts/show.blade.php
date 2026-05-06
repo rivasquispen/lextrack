@@ -461,10 +461,29 @@
                             @foreach ($documentHistories as $history)
                                 @php
                                     $revisionNumber = $totalRevisions - $loop->index;
+                                    $isVendorReady = (bool) $history->is_ready_for_vendor_review;
+                                    $vendorReadyClasses = $isVendorReady
+                                        ? 'text-emerald-600'
+                                        : 'text-slate-400';
                                 @endphp
                                 <li class="py-3 flex flex-wrap items-center gap-3">
                                     <div class="flex-1 min-w-0">
                                         <p class="font-semibold text-slate-800">Revisión {{ $revisionNumber }}</p>
+                                        @if (auth()->user()?->hasRole('abogado'))
+                                            <form method="POST" action="{{ route('contracts.documents.vendor-review-ready', [$contract, $history]) }}" class="mt-1">
+                                                @csrf
+                                                @method('PATCH')
+                                                <button type="submit" class="inline-flex items-center gap-2 text-xs {{ $vendorReadyClasses }} hover:text-emerald-700 transition-colors">
+                                                    <span aria-hidden="true">{{ $isVendorReady ? '●' : '○' }}</span>
+                                                    <span>Conforme para el envío al proveedor</span>
+                                                </button>
+                                            </form>
+                                        @else
+                                            <p class="mt-1 inline-flex items-center gap-2 text-xs {{ $vendorReadyClasses }}">
+                                                <span aria-hidden="true">{{ $isVendorReady ? '●' : '○' }}</span>
+                                                <span>Conforme para el envío al proveedor</span>
+                                            </p>
+                                        @endif
                                         <p class="text-xs text-slate-500 mt-0.5">
                                             {{ optional($history->created_at)->format('d/m/Y H:i') ?? 'sin fecha' }} ·
                                             {{ $history->uploader->nombre ?? $history->uploader->email ?? 'Usuario' }}

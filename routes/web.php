@@ -88,6 +88,9 @@ Route::middleware('auth')->group(function () {
     Route::get('/contracts/{contract}/documents/{history}', [ContractController::class, 'downloadDocument'])
         ->name('contracts.documents.download');
 
+    Route::patch('/contracts/{contract}/documents/{history}/vendor-review-ready', [ContractController::class, 'toggleVendorReviewReady'])
+        ->name('contracts.documents.vendor-review-ready');
+
     Route::get('/contracts/{contract}/final-document', [ContractController::class, 'downloadFinalDocument'])
         ->name('contracts.documents.final');
 

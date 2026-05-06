@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Mail\AdvisorAssignedMail;
 use App\Mail\ContractRevisionPublishedMail;
 use App\Mail\ContractObservedMail;
+use App\Mail\ContractVendorReviewReadyMail;
 use App\Models\Contract;
 use App\Models\ContractVersionHistory;
 use App\Models\ContractVersion;
@@ -675,6 +676,61 @@ class ContractController extends Controller
         }
 
         return back()->with('status', 'Asesor actualizado correctamente.');
+    }
+
+    public function toggleVendorReviewReady(Request $request, Contract $contract, ContractVersionHistory $history): RedirectResponse
+    {
+        $user = $request->user();
+
+        if (! $user || ! $user->hasRole('abogado')) {
+            abort(403);
+        }
+
+        $history->loadMissing([
+            'version' => function ($query) {
+                $query->with(['approvals.user:id,nombre,email']);
+            },
+            'uploader:id,nombre,email',
+        ]);
+
+        if ((int) ($history->version?->contract_id) !== (int) $contract->id) {
+            abort(404);
+        }
+
+        $wasReady = (bool) $history->is_ready_for_vendor_review;
+        $history->is_ready_for_vendor_review = ! $wasReady;
+        $history->save();
+
+        if (! $wasReady && $history->is_ready_for_vendor_review) {
+            $contract->loadMissing([
+                'creator:id,nombre,email',
+                'advisor:id,nombre,email',
+            ]);
+
+            $ctaUrl = route('contracts.show', $contract);
+
+            $recipients = collect([$contract->creator, $contract->advisor])
+                ->merge($history->version?->approvals?->pluck('user') ?? collect())
+                ->merge(User::role('abogado')->get(['id', 'nombre', 'email']))
+                ->filter(function ($recipient) use ($user) {
+                    if (! $recipient || ! $recipient->email) {
+                        return false;
+                    }
+
+                    return (int) $recipient->id !== (int) $user->id;
+                })
+                ->unique(fn ($recipient) => strtolower((string) $recipient->email))
+                ->values();
+
+            foreach ($recipients as $recipient) {
+                Mail::to($recipient->email)
+                    ->send(new ContractVendorReviewReadyMail($contract, $history, $recipient, $user, $ctaUrl));
+            }
+        }
+
+        return back()->with('status', $history->is_ready_for_vendor_review
+            ? 'La revisión quedó conforme para el envío al proveedor.'
+            : 'La revisión ya no figura como conforme para el envío al proveedor.');
     }
 
     public function canViewContract($user, Contract $contract): bool
