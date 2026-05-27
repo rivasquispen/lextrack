@@ -1,5 +1,3 @@
-
-
 <!DOCTYPE html>
 <html lang="{{ str_replace('_', '-', app()->getLocale()) }}">
     <head>
@@ -13,10 +11,75 @@
 
         <!-- Scripts -->
         @vite(['resources/css/app.css', 'resources/js/app.js'])
+
+<style>
+.signature {
+    box-sizing: border-box;
+    padding: 8px;
+    background: #ffffff;
+}
+.signature-content {
+    display: flex;
+    align-items: center;
+    gap: 15px;
+    max-width:1300px;
+    margin: auto;
+}
+.signature-logo img,
+.signature-slogan img {
+    display: block;
+    height: auto;
+}
+.signature-logo img { width: 150px; }
+.signature-slogan img { width: 200px; margin-top:3px; }
+
+.signature-top {
+    border-bottom: .5px solid #dedede;
+}
+.signature-top .signature-content {
+    justify-content: flex-end;
+}
+.signature-top .signature-slogan { order: 1; }
+.signature-top .signature-logo { order: 2; }
+
+.signature-bottom {
+    border-top: .5px solid #dedede;
+}
+.signature-bottom .signature-content {
+    justify-content: flex-start;
+}
+.signature-bottom .signature-logo { order: 1; }
+.signature-bottom .signature-slogan { order: 2; }
+
+@media (max-width: 767px) {
+    .signature { padding: 6px 2px; }
+    .signature-content { gap: 10px; }
+    .signature-logo img { width: 130px; }
+    .signature-slogan img { width: 184px; margin-top:2.5px; }
+    .signature-top .signature-content {
+        justify-content: flex-end;
+    }
+}
+</style>
+
+
     </head>
 
 
     <body class="font-sans antialiased bg-muted min-h-screen">
+
+<aside class="signature signature-top">
+    <div class="signature-content">
+        <div class="signature-logo">
+            <a href="https://humanovalab.com" target="_blank">
+                <img src="https://confia.pe/wp-content/uploads/2024/02/humanova-logo-1.svg" alt="humanova">
+            </a>
+        </div>
+        <div class="signature-slogan">
+            <img src="https://confia.pe/wp-content/uploads/2024/02/humanova-slogan.svg" alt="humanova slogan">
+        </div>
+    </div>
+</aside>
 
         <div class="min-h-screen flex flex-col">
             <header class="bg-white shadow-sm z-40">
@@ -146,6 +209,19 @@
         </div>
 
         @stack('modals')
+
+<aside class="signature signature-bottom">
+    <div class="signature-content">
+        <div class="signature-logo">
+            <a href="https://humanovalab.com" target="_blank">
+                <img src="https://confia.pe/wp-content/uploads/2024/02/humanova-logo-1.svg" alt="humanova">
+            </a>
+        </div>
+        <div class="signature-slogan">
+            <img src="https://confia.pe/wp-content/uploads/2024/02/humanova-slogan.svg" alt="humanova slogan">
+        </div>
+    </div>
+</aside>
 
         @stack('scripts')
     </body>
