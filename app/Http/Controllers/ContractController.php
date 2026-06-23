@@ -6,9 +6,11 @@ use App\Mail\AdvisorAssignedMail;
 use App\Mail\ContractRevisionPublishedMail;
 use App\Mail\ContractObservedMail;
 use App\Mail\ContractVendorReviewReadyMail;
+use App\Models\Category;
 use App\Models\Contract;
 use App\Models\ContractVersionHistory;
 use App\Models\ContractVersion;
+use App\Models\Subcategory;
 use App\Models\User;
 use App\Services\ContractMailRecipients;
 use App\Services\ContractDocumentStorage;
@@ -76,6 +78,13 @@ class ContractController extends Controller
 
         $latestApprovals = $currentVersion?->approvals ?? collect();
         $attachments = $currentVersion?->attachments ?? [];
+        $comments = $contract->comments()
+            ->with('user:id,nombre,email')
+            ->latest()
+            ->take(40)
+            ->get()
+            ->reverse()
+            ->values();
         $histories = ContractVersionHistory::whereHas('version', function ($query) use ($contract) {
             $query->where('contract_id', $contract->id);
         })
@@ -129,9 +138,12 @@ class ContractController extends Controller
         }
 
         $userCanConfigure = $this->canConfigureApprovals($user, $contract) && $isViewingLatest;
+        $canReclassifyContract = $this->canReclassifyContract($user, $contract) && $isViewingLatest;
 
         $advisors = collect();
         $approverOptions = collect();
+        $categories = collect();
+        $categoryMatrix = [];
         $selectedApprovers = $latestApprovals->pluck('user_id')->all();
         $canAssignAdvisor = $user && $user->hasRole('abogado') && $isViewingLatest;
 
@@ -149,11 +161,28 @@ class ContractController extends Controller
                 ->get(['id', 'nombre', 'email', 'department_id']);
         }
 
+        if ($canReclassifyContract) {
+            $categories = Category::with('subcategories:id,nombre,category_id')
+                ->orderBy('nombre')
+                ->get(['id', 'nombre']);
+
+            $categoryMatrix = $categories->map(function ($category) {
+                return [
+                    'id' => $category->id,
+                    'subs' => $category->subcategories->map(fn ($sub) => [
+                        'id' => $sub->id,
+                        'nombre' => $sub->nombre,
+                    ])->values(),
+                ];
+            })->values();
+        }
+
         return view('contracts.show', [
             'contract' => $contract,
             'latestVersion' => $currentVersion,
             'latestApprovals' => $latestApprovals,
             'attachments' => $attachments,
+            'comments' => $comments,
             'userCanConfigure' => $userCanConfigure,
             'canUploadDocument' => $isViewingLatest && $this->canUploadDocument($user, $contract),
             'canDownloadDocument' => $this->canDownloadDocument($user, $contract),
@@ -161,7 +190,10 @@ class ContractController extends Controller
             'documentHistories' => $histories,
             'latestDocumentHistory' => $latestDocumentHistory,
             'canAssignAdvisor' => $canAssignAdvisor,
+            'canReclassifyContract' => $canReclassifyContract,
             'advisors' => $advisors,
+            'categories' => $categories,
+            'categoryMatrix' => $categoryMatrix,
             'approverOptions' => $approverOptions,
             'hasFinalDocument' => $contract->document && Storage::exists($contract->document),
             'hasSignedDocument' => $contract->document_signed && Storage::exists($contract->document_signed),
@@ -280,6 +312,10 @@ class ContractController extends Controller
             abort(404);
         }
 
+        if ((bool) $history->is_error) {
+            abort(403);
+        }
+
         if (! $history->document_path || ! Storage::exists($history->document_path)) {
             abort(404);
         }
@@ -310,6 +346,15 @@ class ContractController extends Controller
 
         if (! $latestVersion || ! $latestVersion->documento || ! Storage::exists($latestVersion->documento)) {
             abort(404);
+        }
+
+        $latestHistory = ContractVersionHistory::query()
+            ->where('contract_version_id', $latestVersion->id)
+            ->latest('created_at')
+            ->first();
+
+        if ($latestHistory?->is_error) {
+            abort(403);
         }
 
         return Storage::download($latestVersion->documento, basename($latestVersion->documento));
@@ -678,6 +723,67 @@ class ContractController extends Controller
         return back()->with('status', 'Asesor actualizado correctamente.');
     }
 
+    public function updateClassification(Request $request, Contract $contract): RedirectResponse
+    {
+        $user = $request->user();
+
+        if (! $this->canReclassifyContract($user, $contract)) {
+            abort(403);
+        }
+
+        $data = $request->validate([
+            'categoria_id' => ['required', 'integer', 'exists:categories,id'],
+            'subcategoria_id' => ['required', 'integer', 'exists:subcategories,id'],
+        ]);
+
+        $subcategory = Subcategory::query()
+            ->whereKey($data['subcategoria_id'])
+            ->where('category_id', $data['categoria_id'])
+            ->first();
+
+        if (! $subcategory) {
+            return back()->withErrors([
+                'subcategoria_id' => 'La subcategoría no pertenece a la categoría seleccionada.',
+            ]);
+        }
+
+        $contract->categoria_id = $data['categoria_id'];
+        $contract->subcategoria_id = $subcategory->id;
+        $contract->save();
+
+        return back()->with('status', 'Clasificación actualizada correctamente.');
+    }
+
+    public function toggleHistoryError(Request $request, Contract $contract, ContractVersionHistory $history): RedirectResponse
+    {
+        $user = $request->user();
+
+        if (! $user || ! $this->canViewContract($user, $contract)) {
+            abort(403);
+        }
+
+        $history->loadMissing([
+            'version' => function ($query) {
+                $query->withTrashed();
+            },
+        ]);
+
+        if ((int) ($history->version?->contract_id) !== (int) $contract->id) {
+            abort(404);
+        }
+
+        if ((int) $history->uploaded_by !== (int) $user->id) {
+            abort(403);
+        }
+
+        $history->is_error = ! (bool) $history->is_error;
+        $history->save();
+
+        return back()->with('status', $history->is_error
+            ? 'La revisión fue marcada como error.'
+            : 'La revisión vuelve a estar disponible.');
+    }
+
     public function toggleVendorReviewReady(Request $request, Contract $contract, ContractVersionHistory $history): RedirectResponse
     {
         $user = $request->user();
@@ -739,7 +845,7 @@ class ContractController extends Controller
             return false;
         }
 
-        if ($user->hasRole('admin') || $user->hasRole('abogado')) {
+        if ($user->hasRole('abogado')) {
             return true;
         }
 
@@ -785,7 +891,7 @@ class ContractController extends Controller
             return false;
         }
 
-        if ($user->hasRole('admin') || $user->hasRole('abogado')) {
+        if ($user->hasRole('abogado')) {
             return true;
         }
 
@@ -804,7 +910,7 @@ class ContractController extends Controller
             return false;
         }
 
-        if ($user->hasRole('admin') || $user->hasRole('abogado')) {
+        if ($user->hasRole('abogado')) {
             return true;
         }
 
@@ -835,6 +941,15 @@ class ContractController extends Controller
 
         return $user->hasRole('abogado')
             && in_array($contract->estado, [Contract::STATUS_APPROVED, Contract::STATUS_OBSERVED], true);
+    }
+
+    private function canReclassifyContract($user, Contract $contract): bool
+    {
+        if (! $user || ! $this->canViewContract($user, $contract)) {
+            return false;
+        }
+
+        return $user->hasRole('abogado') || $user->hasRole('asesor');
     }
 
     private function cleanupStoredFiles(array $paths): void

@@ -156,6 +156,44 @@
                         </form>
                     </div>
                 @endif
+
+                @if ($canReclassifyContract ?? false)
+                    <div class="mt-6 border-t border-slate-100 pt-4">
+                        <form action="{{ route('contracts.classification.update', $contract) }}" method="POST" class="grid gap-3 md:grid-cols-3 md:items-end" data-classification-form>
+                            @csrf
+                            @method('PATCH')
+                            <div>
+                                <label class="text-sm font-semibold text-slate-600">Categoría</label>
+                                <select name="categoria_id" id="classification_categoria_id" class="mt-1 w-full rounded-xl border-slate-200 text-sm" required>
+                                    <option value="">Selecciona una categoría</option>
+                                    @foreach ($categories as $category)
+                                        <option value="{{ $category->id }}" @selected(old('categoria_id', $contract->categoria_id) == $category->id)>
+                                            {{ $category->nombre }}
+                                        </option>
+                                    @endforeach
+                                </select>
+                                @error('categoria_id')
+                                    <p class="text-xs text-rose-600 mt-1">{{ $message }}</p>
+                                @enderror
+                            </div>
+                            <div>
+                                <label class="text-sm font-semibold text-slate-600">Subcategoría</label>
+                                <select name="subcategoria_id" id="classification_subcategoria_id" class="mt-1 w-full rounded-xl border-slate-200 text-sm" data-selected="{{ old('subcategoria_id', $contract->subcategoria_id) }}" required>
+                                    <option value="">Selecciona una subcategoría</option>
+                                </select>
+                                @error('subcategoria_id')
+                                    <p class="text-xs text-rose-600 mt-1">{{ $message }}</p>
+                                @enderror
+                            </div>
+                            <div class="flex md:justify-end">
+                                <button type="submit" class="btn-lex btn-lex-primary text-sm" data-loading-button>
+                                    <span data-loading-text class="hidden">Guardando...</span>
+                                    <span data-default-text>Guardar cambio</span>
+                                </button>
+                            </div>
+                        </form>
+                    </div>
+                @endif
             </section>
 
             <section class="bg-white rounded-2xl shadow-panel p-6 space-y-4">
@@ -306,7 +344,7 @@
 
         @if ($latestVersion)
             @php
-                $documentLinkable = $canDownloadDocument && $latestDocumentHistory;
+                $documentLinkable = $canDownloadDocument && $latestDocumentHistory && ! $latestDocumentHistory->is_error;
                 $revisionCount = ($documentHistories ?? collect())->count();
             @endphp
             <div class="grid gap-6 lg:grid-cols-3">
@@ -346,6 +384,9 @@
                                             <p class="text-sm font-semibold text-slate-800">{{ $contract->titulo }}</p>
                                             <p class="text-xs text-slate-500">{{ $contract->codigo }} · Versión {{ $latestVersion->numero_version }} · Revisión: {{ $revisionCount }}</p>
                                             <p class="text-xs text-slate-500">Última actualización {{ optional($latestVersion->updated_at)->format('d/m/Y H:i') ?? 'sin registro' }}</p>
+                                            @if ($latestDocumentHistory?->is_error)
+                                                <p class="text-xs italic text-slate-400 mt-1">Archivo marcado como error</p>
+                                            @endif
                                         </div>
                                     </div>
                                 @endif
@@ -462,13 +503,16 @@
                                 @php
                                     $revisionNumber = $totalRevisions - $loop->index;
                                     $isVendorReady = (bool) $history->is_ready_for_vendor_review;
+                                    $isError = (bool) $history->is_error;
+                                    $canToggleError = (int) auth()->id() === (int) $history->uploaded_by;
                                     $vendorReadyClasses = $isVendorReady
                                         ? 'text-emerald-600'
                                         : 'text-slate-400';
                                 @endphp
-                                <li class="py-3 flex flex-wrap items-center gap-3">
+                                <li class="py-3 flex flex-wrap items-center gap-3 {{ $isError ? 'opacity-50' : '' }}">
                                     <div class="flex-1 min-w-0">
                                         <p class="font-semibold text-slate-800">Revisión {{ $revisionNumber }}</p>
+                                    @if (! $isError)
                                         @if (auth()->user()?->hasRole('abogado'))
                                             <form method="POST" action="{{ route('contracts.documents.vendor-review-ready', [$contract, $history]) }}" class="mt-1">
                                                 @csrf
@@ -484,13 +528,27 @@
                                                 <span>Conforme para el envío al proveedor</span>
                                             </p>
                                         @endif
-                                        <p class="text-xs text-slate-500 mt-0.5">
-                                            {{ optional($history->created_at)->format('d/m/Y H:i') ?? 'sin fecha' }} ·
-                                            {{ $history->uploader->nombre ?? $history->uploader->email ?? 'Usuario' }}
-                                        </p>
+                                    @endif
+                                        <div class="mt-0.5 flex flex-wrap items-center gap-2 text-xs text-slate-500">
+                                            <span>{{ optional($history->created_at)->format('d/m/Y H:i') ?? 'sin fecha' }} · {{ $history->uploader->nombre ?? $history->uploader->email ?? 'Usuario' }}</span>
+                                            @if ($isError)
+                                                <span class="italic text-red-600">Archivo marcado como error</span>
+                                            @endif
+                                            @if ($canToggleError)
+                                                <form method="POST" action="{{ route('contracts.documents.error.toggle', [$contract, $history]) }}">
+                                                    @csrf
+                                                    @method('PATCH')
+                                                    <button type="submit" class="font-semibold text-slate-500 hover:text-primary-dark">
+                                                        {{ $isError ? 'Revertir error' : 'Marcar error' }}
+                                                    </button>
+                                                </form>
+                                            @endif
+                                        </div>
                                     </div>
-                                    @if ($canDownloadDocument)
+                                    @if ($canDownloadDocument && ! $isError)
                                         <a href="{{ route('contracts.documents.download', [$contract, $history]) }}" class="text-xs font-semibold text-primary hover:text-primary-dark">Descargar</a>
+                                    @elseif ($isError)
+                                        <span class="text-xs font-semibold text-slate-400">No descargable</span>
                                     @endif
                                 </li>
                             @endforeach
@@ -507,15 +565,43 @@
             </div>
 
             <div style="background-position:top center;background-image:url({{ asset('assets/images/bg.jpg') }})" class="p-4 min-h-[220px] max-h-[350px] overflow-y-auto bg-light border-t-2 border-b-2" data-comments-container>
-                @php $comments = $contract->comments()->with('user')->latest()->take(40)->get()->reverse(); @endphp
                 @forelse ($comments as $comment)
-                    @php $isOwner = auth()->id() == $comment->user_id; @endphp
-                    <div class="rounded-2xl border px-4 my-2 py-3 {{ $isOwner ? 'bg-emerald-100 border-emerald-100 ml-10' : 'bg-slate-50 border-slate-100 mr-10' }}">
+                    @php
+                        $isOwner = auth()->id() == $comment->user_id;
+                        $isHidden = (bool) $comment->is_hidden;
+                    @endphp
+                    <div class="rounded-2xl border px-4 my-2 py-3 {{ $isOwner ? 'bg-emerald-100 border-emerald-100 ml-10' : 'bg-slate-50 border-slate-100 mr-10' }}" style="{{ $isHidden ? 'opacity:.5; border: 1px #ABABAB dashed' : '' }}">
                         <div class="flex items-center justify-between">
                             <p class="text-sm font-semibold {{ $isOwner ? 'text-emerald-800' : 'text-slate-800' }}">{{ $comment->user->nombre ?? $comment->user->email }}</p>
-                            <span class="text-xs text-slate-400">{{ optional($comment->created_at)->diffForHumans() }}</span>
+                            <div class="flex items-center gap-2">
+                                <span class="text-xs text-slate-400">{{ optional($comment->created_at)->diffForHumans() }}</span>
+                                @if ($isOwner)
+                                    <form method="POST" action="{{ route('contracts.comments.visibility.toggle', [$contract, $comment]) }}">
+                                        @csrf
+                                        @method('PATCH')
+                                        <button type="submit" class="text-slate-400 hover:text-slate-600 {{ $isHidden ? 'opacity-50' : '' }}" title="{{ $isHidden ? 'Mostrar mensaje' : 'Ocultar mensaje' }}">
+                                            @if (!$isHidden)
+                                                <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true">
+                                                    <path stroke-linecap="round" stroke-linejoin="round" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.27 2.943 9.542 7-1.272 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7Z" />
+                                                    <circle cx="12" cy="12" r="3" />
+                                                </svg>
+                                            @else
+                                                <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true">
+                                                    <path stroke-linecap="round" stroke-linejoin="round" d="M3 3l18 18" />
+                                                    <path stroke-linecap="round" stroke-linejoin="round" d="M10.58 10.58A2 2 0 0 0 12 14a2 2 0 0 0 1.42-.58" />
+                                                    <path stroke-linecap="round" stroke-linejoin="round" d="M9.88 5.09A9.77 9.77 0 0 1 12 5c4.478 0 8.27 2.943 9.542 7a9.77 9.77 0 0 1-4.132 5.411" />
+                                                    <path stroke-linecap="round" stroke-linejoin="round" d="M6.228 6.228A9.776 9.776 0 0 0 2.458 12c1.274 4.057 5.065 7 9.542 7 1.257 0 2.46-.232 3.568-.656" />
+                                                </svg>
+                                            @endif
+                                        </button>
+                                    </form>
+                                @endif
+                            </div>
                         </div>
-                        <p class="text-xs text-slate-600 mt-2">{{ $comment->mensaje }}</p>
+                        @if ($isHidden && ! $isOwner)
+                        @else
+                            <p class="text-xs text-slate-600 mt-2">{{ $comment->mensaje }}</p>
+                        @endif
                     </div>
                 @empty
                     <div class="flex justify-center p-4">
@@ -682,6 +768,9 @@
         document.addEventListener('DOMContentLoaded', () => {
             const versionForm = document.querySelector('[data-version-form]');
             const versionSubmit = document.querySelector('[data-version-submit]');
+            const categoryMatrix = @json($categoryMatrix ?? []);
+            const classificationCategorySelect = document.getElementById('classification_categoria_id');
+            const classificationSubcategorySelect = document.getElementById('classification_subcategoria_id');
 
             versionForm?.addEventListener('submit', () => {
                 if (! versionSubmit) {
@@ -692,6 +781,46 @@
                 versionSubmit.classList.add('opacity-70');
                 versionSubmit.innerHTML = '<svg class="me-2 h-4 w-4 animate-spin text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z"></path></svg>Guardando revisión...';
             });
+
+            const populateClassificationSubcategories = (categoryId, hydrateFromOld = false) => {
+                if (! classificationSubcategorySelect) {
+                    return;
+                }
+
+                classificationSubcategorySelect.innerHTML = '<option value="">Selecciona una subcategoría</option>';
+                const category = categoryMatrix.find((item) => String(item.id) === String(categoryId));
+
+                if (! category) {
+                    return;
+                }
+
+                const storedSubcategory = hydrateFromOld ? (classificationSubcategorySelect.dataset.selected || '') : '';
+
+                category.subs.forEach((subcategory) => {
+                    const option = document.createElement('option');
+                    option.value = subcategory.id;
+                    option.textContent = subcategory.nombre;
+                    classificationSubcategorySelect.appendChild(option);
+                });
+
+                if (storedSubcategory) {
+                    classificationSubcategorySelect.value = storedSubcategory;
+                    classificationSubcategorySelect.dataset.selected = '';
+                }
+            };
+
+            classificationCategorySelect?.addEventListener('change', (event) => {
+                if (classificationSubcategorySelect) {
+                    classificationSubcategorySelect.dataset.selected = '';
+                }
+
+                populateClassificationSubcategories(event.target.value);
+            });
+
+            if (classificationCategorySelect) {
+                populateClassificationSubcategories(classificationCategorySelect.value, true);
+            }
+
         const filterInput = document.querySelector('[data-filter-input="approver-select"]');
         const approverSelect = document.getElementById('approver-select');
 

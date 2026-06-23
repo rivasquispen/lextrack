@@ -85,11 +85,17 @@ Route::middleware('auth')->group(function () {
     Route::patch('/contracts/{contract}/advisor', [ContractController::class, 'updateAdvisor'])
         ->name('contracts.advisor.update');
 
+    Route::patch('/contracts/{contract}/classification', [ContractController::class, 'updateClassification'])
+        ->name('contracts.classification.update');
+
     Route::get('/contracts/{contract}/documents/{history}', [ContractController::class, 'downloadDocument'])
         ->name('contracts.documents.download');
 
     Route::patch('/contracts/{contract}/documents/{history}/vendor-review-ready', [ContractController::class, 'toggleVendorReviewReady'])
         ->name('contracts.documents.vendor-review-ready');
+
+    Route::patch('/contracts/{contract}/documents/{history}/error', [ContractController::class, 'toggleHistoryError'])
+        ->name('contracts.documents.error.toggle');
 
     Route::get('/contracts/{contract}/final-document', [ContractController::class, 'downloadFinalDocument'])
         ->name('contracts.documents.final');
@@ -123,6 +129,9 @@ Route::middleware('auth')->group(function () {
 
     Route::post('/contracts/{contract}/comments', [ContractCommentController::class, 'store'])
         ->name('contracts.comments.store');
+
+    Route::patch('/contracts/{contract}/comments/{comment}/visibility', [ContractCommentController::class, 'toggleVisibility'])
+        ->name('contracts.comments.visibility.toggle');
 
 });
 

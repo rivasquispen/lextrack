@@ -15,6 +15,11 @@ class ContractComment extends Model
         'contract_version_id',
         'user_id',
         'mensaje',
+        'is_hidden',
+    ];
+
+    protected $casts = [
+        'is_hidden' => 'boolean',
     ];
 
     public function contract(): BelongsTo

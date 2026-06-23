@@ -35,6 +35,7 @@ class ContractCommentController extends Controller
             'contract_version_id' => $data['contract_version_id'] ?? null,
             'user_id' => $user->id,
             'mensaje' => $data['mensaje'],
+            'is_hidden' => false,
         ]);
 
         $version = null;
@@ -68,6 +69,30 @@ class ContractCommentController extends Controller
         }
 
         return back()->with('status', 'Comentario agregado.');
+    }
+
+    public function toggleVisibility(Request $request, Contract $contract, ContractComment $comment): RedirectResponse
+    {
+        $user = $request->user();
+
+        if (! $user || ! $this->canViewContract($user, $contract)) {
+            abort(403);
+        }
+
+        if ((int) $comment->contract_id !== (int) $contract->id) {
+            abort(404);
+        }
+
+        if ((int) $comment->user_id !== (int) $user->id) {
+            abort(403);
+        }
+
+        $comment->is_hidden = ! (bool) $comment->is_hidden;
+        $comment->save();
+
+        return back()->with('status', $comment->is_hidden
+            ? 'Comentario ocultado correctamente.'
+            : 'Comentario visible nuevamente.');
     }
 
     private function canViewContract($user, Contract $contract): bool

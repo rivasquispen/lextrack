@@ -15,10 +15,12 @@ class ContractVersionHistory extends Model
         'document_path',
         'uploaded_by',
         'is_ready_for_vendor_review',
+        'is_error',
     ];
 
     protected $casts = [
         'is_ready_for_vendor_review' => 'boolean',
+        'is_error' => 'boolean',
     ];
 
     public function version(): BelongsTo
