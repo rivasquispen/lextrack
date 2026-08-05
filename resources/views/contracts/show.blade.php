@@ -395,7 +395,7 @@
                                 <form method="POST" action="{{ route('contracts.versions.store', $contract) }}" enctype="multipart/form-data" class="space-y-4" data-version-form>
                                     @csrf
                                     <div>
-                                        <label class="text-sm font-semibold text-slate-700">Subir nueva revisión (.docx)</label>
+                                        <label class="text-sm font-semibold text-slate-700">Subir nueva revisión (.doc o .docx)</label>
                                         <input type="file" name="document" accept=".doc,.docx" required class="mt-2 w-full text-sm" />
                                         @error('document')
                                             <p class="text-xs text-red-600 mt-1">{{ $message }}</p>

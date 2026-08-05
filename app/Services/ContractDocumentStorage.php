@@ -26,7 +26,7 @@ class ContractDocumentStorage
         $directory = $this->versionDirectory($contractCode, $version);
         Storage::makeDirectory($directory);
 
-        $filename = $this->documentFilename($contractCode, $version);
+        $filename = $this->documentFilename($contractCode, $version, $this->uploadedDocumentExtension($file));
 
         return $file->storeAs($directory, $filename);
     }
@@ -70,7 +70,7 @@ class ContractDocumentStorage
         $directory = $this->versionDirectory($contractCode, $version);
         Storage::makeDirectory($directory);
 
-        $filename = $this->documentFilename($contractCode, $version);
+        $filename = $this->documentFilename($contractCode, $version, pathinfo($sourcePath, PATHINFO_EXTENSION) ?: 'docx');
         $destination = $directory.'/'.$filename;
 
         return Storage::copy($sourcePath, $destination) ? $destination : null;
@@ -124,7 +124,8 @@ class ContractDocumentStorage
         Storage::makeDirectory($directory);
 
         $timestamp = now()->format('YmdHis');
-        $filename = sprintf('%s-%d-%s.docx', $contractCode, $version, $timestamp);
+        $extension = pathinfo($sourcePath, PATHINFO_EXTENSION) ?: 'docx';
+        $filename = sprintf('%s-%d-%s.%s', $contractCode, $version, $timestamp, $extension);
         $historyPath = $directory.'/'.$filename;
 
         if (Storage::copy($sourcePath, $historyPath)) {
@@ -134,13 +135,20 @@ class ContractDocumentStorage
         return null;
     }
 
-    private function documentFilename(string $contractCode, int $version): string
+    private function documentFilename(string $contractCode, int $version, string $extension = 'docx'): string
     {
-        return sprintf('%s-%d.docx', $contractCode, $version);
+        return sprintf('%s-%d.%s', $contractCode, $version, $extension);
     }
 
     private function signedDocumentFilename(string $contractCode, int $version): string
     {
         return sprintf('%s-%d.pdf', $contractCode, $version);
+    }
+
+    private function uploadedDocumentExtension(UploadedFile $file): string
+    {
+        $extension = strtolower($file->getClientOriginalExtension() ?: $file->guessExtension() ?: 'docx');
+
+        return in_array($extension, ['doc', 'docx'], true) ? $extension : 'docx';
     }
 }
