@@ -7,6 +7,7 @@ use App\Mail\ContractApprovedMail;
 use App\Models\Approval;
 use App\Models\Contract;
 use App\Models\User;
+use App\Services\ApprovalReopeningService;
 use App\Services\ContractMailRecipients;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -16,9 +17,7 @@ use Illuminate\Validation\ValidationException;
 
 class ContractApprovalController extends Controller
 {
-    public function __construct(private ContractMailRecipients $mailRecipients)
-    {
-    }
+    public function __construct(private ContractMailRecipients $mailRecipients) {}
 
     public function update(Request $request, Contract $contract): RedirectResponse
     {
@@ -160,18 +159,34 @@ class ContractApprovalController extends Controller
             abort(403, 'No estás autorizado para aprobar este contrato.');
         }
 
-        if ($approval->estado === 'aprobado') {
-            return back()->with('status', 'Ya registraste tu aprobación para este contrato.');
-        }
-
         $contractJustApproved = false;
+        $approvalChanged = false;
 
-        DB::transaction(function () use ($approval, $contract, &$contractJustApproved) {
+        DB::transaction(function () use ($approval, $contract, &$contractJustApproved, &$approvalChanged) {
+            $contract = Contract::query()->lockForUpdate()->findOrFail($contract->id);
+            $version = $contract->versions()->orderByDesc('numero_version')->lockForUpdate()->first();
+            $approval = Approval::query()->lockForUpdate()->findOrFail($approval->id);
+
+            if (! $version || (int) $version->id !== (int) $approval->version_id) {
+                throw ValidationException::withMessages(['approval' => 'Solo puedes aprobar la versión vigente del contrato.']);
+            }
+
+            if (app(ApprovalReopeningService::class)->hasSignatureEvidence($contract)) {
+                throw ValidationException::withMessages(['approval' => 'No se pueden modificar aprobaciones de un contrato con evidencia de firma.']);
+            }
+
+            if ($approval->estado === 'aprobado') {
+                return;
+            }
+
+            if (! in_array($contract->estado, [Contract::STATUS_APPROVAL, Contract::STATUS_OBSERVED], true)) {
+                throw ValidationException::withMessages(['approval' => 'El contrato no está disponible para registrar aprobaciones.']);
+            }
+
             $approval->estado = 'aprobado';
             $approval->aprobado_at = now();
             $approval->save();
-
-            $version = $approval->version()->lockForUpdate()->first();
+            $approvalChanged = true;
 
             if ($version && ! $version->approvals()->where('estado', '!=', 'aprobado')->exists()) {
                 if ($version->estado !== 'aprobado') {
@@ -189,7 +204,12 @@ class ContractApprovalController extends Controller
             }
         });
 
+        if (! $approvalChanged) {
+            return back()->with('status', 'Ya registraste tu aprobación para este contrato.');
+        }
+
         if ($contractJustApproved) {
+            $contract->refresh();
             $contract->loadMissing(['creator:id,nombre,email', 'lawyer:id,nombre,email', 'advisor:id,nombre,email', 'category:id,nombre']);
             $version = $contract->versions()
                 ->with(['approvals.user:id,nombre,email'])

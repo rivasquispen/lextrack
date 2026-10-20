@@ -7,6 +7,7 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\HasManyThrough;
+use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Database\Eloquent\SoftDeletes;
 
 class Contract extends Model
@@ -14,10 +15,15 @@ class Contract extends Model
     use HasFactory, SoftDeletes;
 
     public const STATUS_CREATED = 'creado';
+
     public const STATUS_ASSIGNED = 'asignado';
+
     public const STATUS_APPROVAL = 'en_aprobacion';
+
     public const STATUS_APPROVED = 'aprobado';
+
     public const STATUS_SIGNED = 'firmado';
+
     public const STATUS_OBSERVED = 'observado';
 
     public const STATUS_LABELS = [
@@ -79,6 +85,11 @@ class Contract extends Model
             'contract_id',
             'version_id'
         );
+    }
+
+    public function latestVersion(): HasOne
+    {
+        return $this->hasOne(ContractVersion::class)->ofMany('numero_version', 'max');
     }
 
     public function signers(): HasMany

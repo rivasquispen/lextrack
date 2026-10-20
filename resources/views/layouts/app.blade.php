@@ -11,75 +11,61 @@
 
         <!-- Scripts -->
         @vite(['resources/css/app.css', 'resources/js/app.js'])
-
-<style>
-.signature {
-    box-sizing: border-box;
-    padding: 8px;
-    background: #ffffff;
-}
-.signature-content {
-    display: flex;
-    align-items: center;
-    gap: 15px;
-    max-width:1300px;
-    margin: auto;
-}
-.signature-logo img,
-.signature-slogan img {
-    display: block;
-    height: auto;
-}
-.signature-logo img { width: 150px; }
-.signature-slogan img { width: 200px; margin-top:3px; }
-
-.signature-top {
-    border-bottom: .5px solid #dedede;
-}
-.signature-top .signature-content {
-    justify-content: flex-end;
-}
-.signature-top .signature-slogan { order: 1; }
-.signature-top .signature-logo { order: 2; }
-
-.signature-bottom {
-    border-top: .5px solid #dedede;
-}
-.signature-bottom .signature-content {
-    justify-content: flex-start;
-}
-.signature-bottom .signature-logo { order: 1; }
-.signature-bottom .signature-slogan { order: 2; }
-
-@media (max-width: 767px) {
-    .signature { padding: 6px 2px; }
-    .signature-content { gap: 10px; }
-    .signature-logo img { width: 130px; }
-    .signature-slogan img { width: 184px; margin-top:2.5px; }
-    .signature-top .signature-content {
-        justify-content: flex-end;
+<style id="humanova-signature-styles">
+    .humanova-signature {
+        padding: 8.5px 0;
+        background: #fff;
+        border-bottom: 0.5px solid #dedede;
     }
-}
-</style>
 
+    .humanova-signature__content {
+        display: flex;
+        align-items: center;
+        justify-content: flex-end;
+        gap: 7.5px;
+        width: min(calc(100% - 30px), 100%);
+        margin-inline: auto;
+    }
+
+    .humanova-signature img {
+        display: block;
+    }
+
+    .humanova-signature__slogan img {
+        margin-top: 1px;
+    }
+
+    @media (max-width: 767px) {
+        .humanova-signature {
+            padding: 7px 0;
+        }
+
+        .humanova-signature__content {
+            width: min(calc(100% - 20px), 1300px);
+        }
+    }
+</style>
 
     </head>
 
 
     <body class="font-sans antialiased bg-muted min-h-screen">
 
-<aside class="signature signature-top">
-    <div class="signature-content">
-        <div class="signature-logo">
-            <a href="https://humanovalab.com" target="_blank">
-                <img src="https://confia.pe/wp-content/uploads/2024/02/humanova-logo-1.svg" alt="humanova">
-            </a>
-        </div>
-        <div class="signature-slogan">
-            <img src="https://confia.pe/wp-content/uploads/2024/02/humanova-slogan.svg" alt="humanova slogan">
-        </div>
-    </div>
-</aside>
+        <aside class="humanova-signature">
+            <div class="humanova-signature__content">
+
+                <div class="humanova-signature__slogan">
+                    <img src="<?= asset('assets/images/humanova-slogan.svg'); ?>" alt="Humanova, contigo en cada paso" width="167" height="10">
+                </div>
+
+                <div class="humanova-signature__logo">
+                    <a href="https://humanovalab.com" target="_blank" rel="noopener noreferrer" aria-label="Visitar Humanova">
+                        <img src="<?= asset('assets/images/humanova-logo.svg'); ?>" alt="Humanova" width="100" height="12.5">
+                    </a>
+                </div>
+
+            </div>
+        </aside>
 
         <div class="min-h-screen flex flex-col">
             <header class="bg-white shadow-sm z-40">

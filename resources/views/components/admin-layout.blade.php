@@ -81,6 +81,12 @@
             'requires_role' => 'admin',
             'items' => [
                 [
+                    'label' => 'Correcciones de aprobaciones',
+                    'route' => route('admin.approval-reopenings.index'),
+                    'active' => request()->routeIs('admin.approval-reopenings.*'),
+                    'can' => null,
+                ],
+                [
                     'label' => 'Usuarios',
                     'route' => route('admin.users.index'),
                     'active' => request()->routeIs('admin.users.*'),

@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\Admin\AdminDashboardController;
+use App\Http\Controllers\Admin\ApprovalReopeningController;
 use App\Http\Controllers\Admin\BrandClassController;
 use App\Http\Controllers\Admin\BrandCountryController;
 use App\Http\Controllers\Admin\BrandStatusController;
@@ -136,6 +137,11 @@ Route::middleware('auth')->group(function () {
 });
 
 Route::middleware(['auth'])->prefix('admin')->name('admin.')->group(function () {
+    Route::middleware('role:admin')->group(function () {
+        Route::get('/approval-reopenings', [ApprovalReopeningController::class, 'index'])->name('approval-reopenings.index');
+        Route::post('/contracts/{contract}/approvals/{approval}/reopen', [ApprovalReopeningController::class, 'store'])->name('approval-reopenings.store');
+    });
+
     Route::get('/', [AdminDashboardController::class, 'index'])
         ->middleware('can:view-admin-dashboard')
         ->name('dashboard');
