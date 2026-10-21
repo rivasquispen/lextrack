@@ -18,6 +18,7 @@ use App\Http\Controllers\Admin\UserManagementController;
 use App\Http\Controllers\Auth\MicrosoftAuthController;
 use App\Http\Controllers\BrandController;
 use App\Http\Controllers\ContractApprovalController;
+use App\Http\Controllers\ApprovalReminderController;
 use App\Http\Controllers\ContractController;
 use App\Http\Controllers\ContractFlowController;
 use App\Http\Controllers\DashboardController;
@@ -124,6 +125,9 @@ Route::middleware('auth')->group(function () {
 
     Route::post('/contracts/{contract}/approvals/{approval}/approve', [ContractApprovalController::class, 'approve'])
         ->name('contracts.approvals.approve');
+
+    Route::post('/contracts/{contract}/approvals/{approval}/reminder', [ApprovalReminderController::class, 'store'])
+        ->name('contracts.approvals.reminder');
 
     Route::delete('/contracts/{contract}/approvals/{approval}', [ContractApprovalController::class, 'destroy'])
         ->name('contracts.approvals.destroy');

@@ -8,11 +8,13 @@ use App\Mail\ContractObservedMail;
 use App\Mail\ContractVendorReviewReadyMail;
 use App\Models\Category;
 use App\Models\Contract;
+use App\Models\ApprovalReminder;
 use App\Models\ContractVersionHistory;
 use App\Models\ContractVersion;
 use App\Models\Subcategory;
 use App\Models\User;
 use App\Services\ContractMailRecipients;
+use App\Services\ApprovalReminderService;
 use App\Services\ContractDocumentStorage;
 use Illuminate\Http\RedirectResponse;
 use Symfony\Component\HttpFoundation\StreamedResponse;
@@ -138,6 +140,10 @@ class ContractController extends Controller
         }
 
         $userCanConfigure = $this->canConfigureApprovals($user, $contract) && $isViewingLatest;
+        $canRemindApprovers = $isViewingLatest && app(ApprovalReminderService::class)->canRemind($user, $contract, $currentVersion);
+        $approvalReminders = $canRemindApprovers
+            ? ApprovalReminder::whereIn('approval_id', $latestApprovals->pluck('id'))->latest('id')->get()->unique('approval_id')->keyBy('approval_id')
+            : collect();
         $canReclassifyContract = $this->canReclassifyContract($user, $contract) && $isViewingLatest;
 
         $advisors = collect();
@@ -184,6 +190,8 @@ class ContractController extends Controller
             'attachments' => $attachments,
             'comments' => $comments,
             'userCanConfigure' => $userCanConfigure,
+            'canRemindApprovers' => $canRemindApprovers,
+            'approvalReminders' => $approvalReminders,
             'canUploadDocument' => $isViewingLatest && $this->canUploadDocument($user, $contract),
             'canDownloadDocument' => $this->canDownloadDocument($user, $contract),
             'canUploadSignedDocument' => $isViewingLatest && $this->canUploadSignedDocument($user, $contract),

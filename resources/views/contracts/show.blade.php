@@ -689,10 +689,33 @@
                         $assignmentDate = $approval->assigned_at ?? $approval->created_at;
                         $canApproveContract = $currentUser && ((int) $currentUser->id) === (int) $approval->user_id && $approval->estado !== 'aprobado';
                         $canRemoveApprover = $currentUser?->hasRole('abogado') && $approval->estado !== 'aprobado';
+                        $canRemindApproval = $canRemindApprovers && $approval->estado === 'pendiente' && ! $approval->aprobado_at && $assignmentDate;
+                        $lastReminder = $approvalReminders->get($approval->id);
+                        $reminderBlocked = $lastReminder && $lastReminder->created_at->copy()->addHours(24)->isFuture();
                     @endphp
                     <div class="rounded-2xl border border-slate-100- p-4 h-full relative">
-                        @if ($canRemoveApprover)
-                            <form method="POST" action="{{ route('contracts.approvals.destroy', [$contract, $approval]) }}" class="absolute top-2 right-2" style="right:8px; top: 8px">
+                        @if ($canRemoveApprover || $canRemindApproval)
+                            <div class="absolute top-2 right-2 flex items-center gap-3" style="right:8px; top: 8px">
+                            @if ($canRemindApproval)
+                                <form method="POST" action="{{ route('contracts.approvals.reminder', [$contract, $approval]) }}"
+                                      onsubmit="return confirm('¿Enviar a este aprobador un recordatorio de su decisión pendiente? Quedará registrado y no podrá repetirse durante 24 horas.');">
+                                    @csrf
+                                    <input type="hidden" name="version_id" value="{{ $latestVersion->id }}">
+                                    <button type="submit" class="text-amber-600 hover:text-primary disabled:opacity-40 disabled:cursor-not-allowed"
+                                            aria-label="Enviar recordatorio de aprobación"
+                                            title="{{ $reminderBlocked ? 'Ya se registró un intento. Disponible desde '.$lastReminder->created_at->copy()->addHours(24)->format('d/m/Y H:i') : 'Enviar recordatorio de aprobación' }}"
+                                            @disabled($reminderBlocked)>
+                                        <svg class="w-4 h-4 lucide lucide-mail-warning" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                                            <path d="M22 10.5V6a2 2 0 0 0-2-2H4a2 2 0 0 0-2 2v12c0 1.1.9 2 2 2h12.5" />
+                                            <path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7" />
+                                            <path d="M20 14v4" />
+                                            <path d="M20 22v.01" />
+                                        </svg>
+                                    </button>
+                                </form>
+                            @endif
+                            @if ($canRemoveApprover)
+                            <form method="POST" action="{{ route('contracts.approvals.destroy', [$contract, $approval]) }}">
                                 @csrf
                                 @method('DELETE')
                                 <button type="submit" class="text-slate-400 hover:text-red-600" title="Eliminar aprobador" onclick="return confirm('¿Eliminar este aprobador del flujo?');">
@@ -701,8 +724,10 @@
                                     </svg>
                                 </button>
                             </form>
+                            @endif
+                            </div>
                         @endif
-                        <p class="text-sm font-semibold text-slate-800">{{ $approval->user->nombre ?? $approval->user->email }}</p>
+                        <p class="text-sm font-semibold text-slate-800 pr-14">{{ $approval->user->nombre ?? $approval->user->email }}</p>
                         <p class="text-xs text-slate-500 mt-1">Estado: <span class="font-semibold text-primary">{{ ucfirst($approval->estado) }}</span></p>
                         @if ($approval->aprobado_at)
                             <p class="text-xs text-emerald-600 mt-1">Aprobado {{ $approval->aprobado_at->diffForHumans() }}</p>
@@ -714,6 +739,12 @@
                         @endif
                         @if (! $approval->aprobado_at && $assignmentDate)
                             <p class="text-xs text-amber-600 mt-1">Pendiente durante {{ $assignmentDate->diffForHumans(now(), true) }}</p>
+                        @endif
+                        @if ($canRemindApproval && $lastReminder)
+                            <p class="text-xs text-slate-500 mt-1">
+                                Recordatorio: {{ $lastReminder->created_at->format('d/m/Y H:i') }} ·
+                                {{ ['sent' => 'Envío aceptado', 'failed' => 'Envío no confirmado', 'sending' => 'Procesando / sin resultado confirmado'][$lastReminder->status] ?? $lastReminder->status }}
+                            </p>
                         @endif
 
                         @if ($canApproveContract)
