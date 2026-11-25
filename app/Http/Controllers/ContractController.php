@@ -140,6 +140,10 @@ class ContractController extends Controller
         }
 
         $userCanConfigure = $this->canConfigureApprovals($user, $contract) && $isViewingLatest;
+        $canManageApprovalAccess = $isViewingLatest && app(\App\Services\ApprovalAccessService::class)->canManage($user, $contract, $currentVersion);
+        $approvalActionsAllowed = $isViewingLatest && $currentVersion && $currentVersion->estado !== 'aprobado'
+            && in_array($contract->estado, [Contract::STATUS_APPROVAL, Contract::STATUS_OBSERVED], true)
+            && ! app(\App\Services\ApprovalReopeningService::class)->hasSignatureEvidence($contract);
         $canRemindApprovers = $isViewingLatest && app(ApprovalReminderService::class)->canRemind($user, $contract, $currentVersion);
         $approvalReminders = $canRemindApprovers
             ? ApprovalReminder::whereIn('approval_id', $latestApprovals->pluck('id'))->latest('id')->get()->unique('approval_id')->keyBy('approval_id')
@@ -192,6 +196,8 @@ class ContractController extends Controller
             'userCanConfigure' => $userCanConfigure,
             'canRemindApprovers' => $canRemindApprovers,
             'approvalReminders' => $approvalReminders,
+            'canManageApprovalAccess' => $canManageApprovalAccess,
+            'approvalActionsAllowed' => $approvalActionsAllowed,
             'canUploadDocument' => $isViewingLatest && $this->canUploadDocument($user, $contract),
             'canDownloadDocument' => $this->canDownloadDocument($user, $contract),
             'canUploadSignedDocument' => $isViewingLatest && $this->canUploadSignedDocument($user, $contract),
@@ -230,6 +236,10 @@ class ContractController extends Controller
         DB::beginTransaction();
 
         try {
+            $contract = Contract::query()->lockForUpdate()->findOrFail($contract->id);
+            abort_unless($this->canUploadDocument($user, $contract), 403);
+            $latestVersion = $contract->versions()->orderByDesc('numero_version')->lockForUpdate()->first();
+
             $documentPath = $this->documentStorage->storeUploadedDocument(
                 $request->file('document'),
                 $contract->codigo,
@@ -421,7 +431,7 @@ class ContractController extends Controller
         }
 
         $latestVersion = $contract->versions()
-            ->with(['approvals:user_id'])
+            ->with('approvals')
             ->orderByDesc('numero_version')
             ->first();
 
@@ -435,6 +445,9 @@ class ContractController extends Controller
         $newVersion = null;
 
         try {
+            $contract = Contract::query()->lockForUpdate()->findOrFail($contract->id);
+            abort_unless($this->canStartObservation($user, $contract), 403);
+            $latestVersion = $contract->versions()->with('approvals')->orderByDesc('numero_version')->lockForUpdate()->firstOrFail();
             $newVersionNumber = $latestVersion->numero_version + 1;
 
             $newDocumentPath = $latestVersion->documento
@@ -488,9 +501,16 @@ class ContractController extends Controller
                 ]);
             }
 
-            $latestVersion->approvals->each(function ($approval) use ($newVersion) {
+            $closedAt = now();
+            $latestVersion->approvals->each(function ($approval) use ($newVersion, $closedAt) {
+                if ($approval->unlocked_at) {
+                    $approval->pauseEnabledClock($closedAt);
+                    $approval->save();
+                }
                 $newVersion->approvals()->create([
                     'user_id' => $approval->user_id,
+                    'is_unlocked' => false,
+                    'position' => $approval->position,
                     'estado' => 'pendiente',
                     'aprobado_at' => null,
                     'assigned_at' => now(),
@@ -563,6 +583,11 @@ class ContractController extends Controller
         DB::beginTransaction();
 
         try {
+            $contract = Contract::query()->lockForUpdate()->findOrFail($contract->id);
+            abort_unless($this->canUploadDocument($request->user(), $contract), 403);
+            $version = $contract->versions()->orderByDesc('numero_version')->lockForUpdate()->firstOrFail();
+            $attachmentsMeta = $version->attachments ?? [];
+
             foreach ($validated['attachments'] as $index => $data) {
                 /** @var UploadedFile|null $file */
                 $file = $request->file("attachments.$index.file");
@@ -607,29 +632,33 @@ class ContractController extends Controller
             'attachment_path' => ['required', 'string'],
         ]);
 
-        $version = $contract->versions()->orderByDesc('numero_version')->first();
+        return DB::transaction(function () use ($request, $contract, $validated) {
+            $contract = Contract::query()->lockForUpdate()->findOrFail($contract->id);
+            abort_unless($this->canUploadDocument($request->user(), $contract), 403);
+            $version = $contract->versions()->orderByDesc('numero_version')->first();
 
-        if (! $version) {
-            return back()->withErrors(['attachment' => 'No se encontró una versión para editar adjuntos.']);
-        }
+            if (! $version) {
+                return back()->withErrors(['attachment' => 'No se encontró una versión para editar adjuntos.']);
+            }
 
-        $attachments = collect($version->attachments ?? []);
-        $index = $attachments->search(fn ($item) => ($item['path'] ?? null) === $validated['attachment_path']);
+            $attachments = collect($version->attachments ?? []);
+            $index = $attachments->search(fn ($item) => ($item['path'] ?? null) === $validated['attachment_path']);
 
-        if ($index === false) {
-            return back()->withErrors(['attachment' => 'El adjunto seleccionado no existe.']);
-        }
+            if ($index === false) {
+                return back()->withErrors(['attachment' => 'El adjunto seleccionado no existe.']);
+            }
 
-        $removed = $attachments->pull($index);
+            $removed = $attachments->pull($index);
 
-        $version->attachments = $attachments->values()->all();
-        $version->save();
+            $version->attachments = $attachments->values()->all();
+            $version->save();
 
-        if (! empty($removed['path']) && Storage::exists($removed['path'])) {
-            Storage::delete($removed['path']);
-        }
+            if (! empty($removed['path']) && Storage::exists($removed['path'])) {
+                Storage::delete($removed['path']);
+            }
 
-        return back()->with('status', 'Adjunto eliminado correctamente.');
+            return back()->with('status', 'Adjunto eliminado correctamente.');
+        });
     }
 
 
@@ -903,13 +932,20 @@ class ContractController extends Controller
             return true;
         }
 
-        //|| ($contract->abogado_id && (int) $contract->abogado_id === (int) $user->id)
+        $version = $contract->versions()->orderByDesc('numero_version')->first();
+        $approval = $version?->approvals()->where('approvals.user_id', $user->id)->first();
+        if ($approval) {
+            return $approval->is_unlocked && $version->estado !== 'aprobado'
+                && in_array($contract->estado, [Contract::STATUS_CREATED, Contract::STATUS_ASSIGNED, Contract::STATUS_APPROVAL, Contract::STATUS_OBSERVED], true)
+                && ! app(\App\Services\ApprovalReopeningService::class)->hasSignatureEvidence($contract);
+        }
+
         if ((int) $contract->creado_por === (int) $user->id
             || ($contract->asesor_id && (int) $contract->asesor_id === (int) $user->id)) {
             return true;
         }
 
-        return $contract->approvals()->where('approvals.user_id', $user->id)->exists();
+        return false;
     }
 
     private function canDownloadDocument($user, Contract $contract): bool

@@ -158,8 +158,8 @@
                                 <tr>
                                     <th scope="col" class="px-6 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-wide">Contrato</th>
                                     <th scope="col" class="px-6 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-wide">Estado</th>
+                                    <th scope="col" class="px-6 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-wide">Aprobadores habilitados<br><span class="normal-case font-normal">Pendientes de acción</span></th>
                                     <!--<th scope="col" class="px-6 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-wide">Asesor</th>-->
-                                    <th scope="col" class="px-6 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-wide">Última actualización</th>
                                     <th scope="col" class="px-6 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-wide">Tus roles</th>
                                 </tr>
                             </thead>
@@ -182,13 +182,21 @@
                                                 {{ $contract->status_label }}
                                             </span>
                                         </td>
+                                        <td class="px-6 py-4 text-sm">
+                                            <div class="space-y-1">
+                                                @forelse ($record['pending_approvers'] as $pendingApproval)
+                                                    <a href="{{ route('contracts.show', $contract) }}#approval-flow" class="block text-emerald-700 hover:underline">
+                                                        {{ $pendingApproval->user->nombre ?? $pendingApproval->user->email ?? 'Usuario no disponible' }}
+                                                    </a>
+                                                @empty
+                                                    <span class="text-slate-400">Sin pendientes habilitados</span>
+                                                @endforelse
+                                            </div>
+                                        </td>
                                         <!--
                                         <td class="px-6 py-4 text-sm text-slate-600">
                                             {{ $contract->advisor->nombre ?? $contract->advisor->email ?? 'Por asignar' }}
                                         </td>-->
-                                        <td class="px-6 py-4 text-sm text-slate-500">
-                                            {{ $contract->updated_at?->diffForHumans() ?? 'Sin registro' }}
-                                        </td>
                                         <td class="px-6 py-4">
                                             <div class="flex flex-wrap gap-2">
                                                 @foreach ($roles as $role)
@@ -201,7 +209,7 @@
                                     </tr>
                                 @empty
                                     <tr>
-                                        <td colspan="5" class="px-6 py-8 text-center text-sm text-slate-500">
+                                        <td colspan="4" class="px-6 py-8 text-center text-sm text-slate-500">
                                             No tienes contratos vinculados todavía.
                                         </td>
                                     </tr>

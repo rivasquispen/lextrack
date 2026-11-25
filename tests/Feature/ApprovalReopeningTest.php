@@ -68,11 +68,11 @@ class ApprovalReopeningTest extends TestCase
             'documento' => 'documents/version-2.docx', 'creado_por' => $this->admin->id, 'estado' => 'borrador',
         ]);
         $this->approved = $this->version->approvals()->create([
-            'user_id' => $this->approver->id, 'estado' => 'aprobado',
+            'user_id' => $this->approver->id, 'estado' => 'aprobado', 'is_unlocked' => true,
             'aprobado_at' => now()->subHour(), 'assigned_at' => now()->subDays(2), 'observaciones' => 'Conservar observación',
         ]);
         $this->pending = $this->version->approvals()->create([
-            'user_id' => $this->otherApprover->id, 'estado' => 'pendiente', 'assigned_at' => now()->subDay(),
+            'user_id' => $this->otherApprover->id, 'estado' => 'pendiente', 'assigned_at' => now()->subDay(), 'is_unlocked' => true,
         ]);
     }
 

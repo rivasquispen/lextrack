@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\Category;
 use App\Models\Contract;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Illuminate\View\View;
 
 class DashboardController extends Controller
@@ -20,6 +21,9 @@ class DashboardController extends Controller
             'lawyer:id,nombre',
             'advisor:id,nombre',
             'creator:id,nombre',
+            'latestVersion' => fn ($query) => $query->select('contract_versions.id', 'contract_versions.contract_id', 'contract_versions.numero_version', 'contract_versions.estado'),
+            'latestVersion.approvals' => fn ($query) => $query->where('is_unlocked', true)->where('estado', 'pendiente')->whereNull('aprobado_at'),
+            'latestVersion.approvals.user:id,nombre,email',
             'approvals' => fn ($query) => $query->where('user_id', $user->id),
             'signers' => fn ($query) => $query->where('user_id', $user->id),
         ]);
@@ -42,7 +46,21 @@ class DashboardController extends Controller
             ->orderByDesc('updated_at')
             ->get();
 
-        $contractRecords = $contracts->map(function (Contract $contract) use ($user, $isLawyer) {
+        // Batch the signature check to avoid querying once for every contract row.
+        $signedContractIds = Contract::query()->whereKey($contracts->modelKeys())
+            ->where(function ($query) {
+                $query->where(fn ($q) => $q->whereNotNull('document_signed')->where('document_signed', '!=', ''))
+                    ->orWhereHas('signers', fn ($q) => $q->whereNotNull('firmado_at')->orWhere('estado', 'firmado'))
+                    ->orWhereExists(function ($q) {
+                        $q->select(DB::raw(1))->from('signatures')
+                            ->join('contract_versions', 'contract_versions.id', '=', 'signatures.version_id')
+                            ->whereColumn('contract_versions.contract_id', 'contracts.id')
+                            ->where(fn ($s) => $s->where('signatures.firmado', true)->orWhereNotNull('signatures.firmado_at')
+                                ->orWhere(fn ($d) => $d->whereNotNull('signatures.documento_firmado')->where('signatures.documento_firmado', '!=', '')));
+                    });
+            })->pluck('contracts.id')->flip();
+
+        $contractRecords = $contracts->map(function (Contract $contract) use ($user, $isLawyer, $signedContractIds) {
             $roles = [];
 
             if ((int) $contract->creado_por === (int) $user->id) {
@@ -69,7 +87,14 @@ class DashboardController extends Controller
                 $roles[] = 'observador';
             }
 
+            $pendingApprovers = in_array($contract->estado, [Contract::STATUS_APPROVAL, Contract::STATUS_OBSERVED], true)
+                && $contract->latestVersion && $contract->latestVersion->estado !== 'aprobado'
+                && ! $signedContractIds->has($contract->id)
+                    ? $contract->latestVersion->approvals
+                    : collect();
+
             return [
+                'pending_approvers' => $pendingApprovers,
                 'contract' => $contract,
                 'roles' => $roles,
             ];

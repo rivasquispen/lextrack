@@ -3,6 +3,7 @@
 namespace App\Mail;
 
 use App\Mail\Concerns\AppliesMonitoringBcc;
+use App\Models\Approval;
 use App\Models\ApprovalReminder;
 use Illuminate\Bus\Queueable;
 use Illuminate\Mail\Mailable;
@@ -19,6 +20,10 @@ class ApprovalReminderMail extends Mailable
         $this->applyMonitoringBcc();
         $days = $this->reminder->pending_days;
         $elapsed = $days === 0 ? 'menos de un día' : ($days === 1 ? '1 día' : $days.' días');
+
+        if (array_key_exists('enabled_seconds', $this->reminder->snapshot)) {
+            $elapsed = Approval::formatEnabledSeconds((int) $this->reminder->snapshot['enabled_seconds']);
+        }
 
         return $this->subject('Recordatorio: contrato '.$this->reminder->snapshot['contract_code'].' pendiente de aprobación')
             ->view('mail.contracts.approval-reminder')

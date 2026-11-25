@@ -63,7 +63,7 @@ class ApprovalReminderTest extends TestCase
         ]);
         $this->approval = $this->version->approvals()->create([
             'user_id' => $this->approver->id, 'estado' => 'pendiente',
-            'assigned_at' => now()->subDays(12), 'observaciones' => 'Conservar decisión',
+            'assigned_at' => now()->subDays(12), 'is_unlocked' => true, 'unlocked_at' => now()->subDays(12), 'observaciones' => 'Conservar decisión',
         ]);
     }
 
@@ -145,7 +145,7 @@ class ApprovalReminderTest extends TestCase
     {
         $other = User::factory()->create()->assignRole('aprobador');
         $approval = $this->version->approvals()->create([
-            'user_id' => $other->id, 'estado' => 'pendiente', 'assigned_at' => now()->subDay(),
+            'user_id' => $other->id, 'estado' => 'pendiente', 'assigned_at' => now()->subDay(), 'is_unlocked' => true, 'unlocked_at' => now()->subDay(),
         ]);
         $this->actingAs($this->lawyer)->post($this->url(), $this->payload())->assertSessionHasNoErrors();
         $this->post($this->url($approval), $this->payload())->assertSessionHasNoErrors();
@@ -207,12 +207,12 @@ class ApprovalReminderTest extends TestCase
         $this->assertCount(0, $this->transport->messages());
     }
 
-    public function test_recipient_without_a_valid_email_and_future_assignment_are_rejected(): void
+    public function test_recipient_without_a_valid_email_and_future_unlock_are_rejected(): void
     {
         $this->approver->update(['email' => 'invalid']);
         $this->actingAs($this->lawyer)->postJson($this->url(), $this->payload())->assertUnprocessable();
         $this->approver->update(['email' => 'approver@example.test']);
-        $this->approval->update(['assigned_at' => now()->addDay()]);
+        $this->approval->update(['unlocked_at' => now()->addDay()]);
         $this->postJson($this->url(), $this->payload())->assertUnprocessable();
         $this->assertDatabaseCount('approval_reminders', 0);
         $this->assertCount(0, $this->transport->messages());
@@ -295,7 +295,7 @@ class ApprovalReminderTest extends TestCase
         }
     }
 
-    public function test_original_assignment_is_used_even_after_an_exceptional_reversion(): void
+    public function test_enabled_time_is_independent_of_reversion_history(): void
     {
         ApprovalReopening::create([
             'contract_id' => $this->contract->id, 'version_id' => $this->version->id, 'approval_id' => $this->approval->id,
@@ -307,9 +307,9 @@ class ApprovalReminderTest extends TestCase
         $this->assertSame(12, ApprovalReminder::sole()->pending_days);
     }
 
-    public function test_missing_assignment_uses_original_creation_date(): void
+    public function test_missing_assignment_does_not_prevent_measuring_enabled_time(): void
     {
-        $this->approval->forceFill(['assigned_at' => null, 'created_at' => now()->subDays(3)])->save();
+        $this->approval->forceFill(['assigned_at' => null, 'created_at' => now()->subDays(20), 'unlocked_at' => now()->subDays(3)])->save();
         $this->actingAs($this->lawyer)->post($this->url(), $this->payload())->assertSessionHasNoErrors();
         $this->assertSame(3, ApprovalReminder::sole()->pending_days);
     }
@@ -317,7 +317,7 @@ class ApprovalReminderTest extends TestCase
     #[DataProvider('elapsedDays')]
     public function test_elapsed_days_are_calculated_and_worded_correctly(int $hours, int $days, string $text): void
     {
-        $this->approval->update(['assigned_at' => now()->subHours($hours)]);
+        $this->approval->update(['unlocked_at' => now()->subHours($hours)]);
         $this->actingAs($this->lawyer)->post($this->url(), $this->payload())->assertSessionHasNoErrors();
         $event = ApprovalReminder::sole();
         $this->assertSame($days, $event->pending_days);
@@ -327,7 +327,7 @@ class ApprovalReminderTest extends TestCase
 
     public static function elapsedDays(): array
     {
-        return [[5, 0, 'menos de un día'], [24, 1, '1 día'], [311, 12, '12 días']];
+        return [[5, 0, '5 horas'], [24, 1, '1 día'], [311, 12, '12 días']];
     }
 
     public function test_button_is_visible_to_all_lawyers_and_assigned_advisor_and_cooldown_is_shown(): void

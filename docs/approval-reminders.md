@@ -1,12 +1,12 @@
 # Recordatorios individuales de aprobación
 
 En `/contracts/{id}`, el icono Lucide `mail-warning` aparece a la izquierda de
-la papelera en cada aprobación pendiente. Cualquier usuario con rol abogado puede
+la papelera en cada aprobación pendiente que esté habilitada. Cualquier usuario con rol abogado puede
 utilizarlo; para el rol asesor, debe estar asignado al contrato. El admin no tiene un bypass.
 
 El formulario exige confirmación antes de enviar. En backend se revalida la
 rol del remitente y asignación si es asesor, pertenencia de la aprobación, versión vigente, decisión
-pendiente y ausencia de evidencia de firma. Solo se permiten contratos
+pendiente, candado habilitado con fecha válida y ausencia de evidencia de firma. Solo se permiten contratos
 `en_aprobacion` u `observado`, coherente con el endpoint normal de aprobación.
 
 ## Correo y días pendientes
@@ -15,10 +15,18 @@ El destinatario es el usuario de la aprobación, no un email recibido del navega
 Se utiliza el nombre real del abogado/asesor remitente, código, título y enlace
 al contrato. No se menciona la versión en el correo.
 
-Los días son días completos transcurridos desde `assigned_at`, o `created_at` si
-falta la asignación. Para menos de 24 horas se indica “menos de un día”; se distingue
-“1 día” de “N días”. No se consulta `approval_reopenings`: una reversión excepcional
-no reinicia este contador.
+Desde la medición de tiempo habilitado, el recordatorio utiliza el acumulado de
+`approvals.enabled_seconds` más el tramo abierto desde `unlocked_at`, en lugar de
+la fecha de asignación. Los intervalos con candado cerrado no suman. El snapshot
+conserva los segundos calculados y la fecha del tramo abierto; `pending_days` guarda
+los días completos de ese total. El correo presenta días/horas/minutos según el
+mismo formato que la tarjeta. El snapshot histórico sin `enabled_seconds` conserva
+su interpretación anterior al volver a renderizarlo.
+
+No se permite enviar recordatorios a un usuario con candado cerrado o sin un tramo
+habilitado válido. El límite de un intento cada 24 horas permanece independiente
+del contador de habilitación. Una reversión excepcional reanuda el contador, si el
+candado está abierto, conservando lo acumulado y excluyendo el intervalo aprobado.
 
 Se utiliza el mailer ya configurado, sin modificar `.env`. Con `MAIL_MAILER=log`
 el cuerpo se registra en logs y no sale un correo real; con SMTP usa el transporte

@@ -600,7 +600,7 @@
                         </div>
                         @if ($isHidden && ! $isOwner)
                         @else
-                            <p class="text-xs text-slate-600 mt-2">{{ $comment->mensaje }}</p>
+                            <p class="text-xs text-slate-600 mt-2" style="white-space: pre-wrap; overflow-wrap: anywhere;">{{ $comment->mensaje }}</p>
                         @endif
                     </div>
                 @empty
@@ -637,7 +637,7 @@
                 <p class="text-xs uppercase tracking-[0.3em] text-slate-400">Aprobadores</p>
                 <h2 class="text-xl font-semibold text-primary-dark">Asignar Aprobadores</h2>
             </div>
-            
+
                 <form action="{{ route('contracts.approvals.update', $contract) }}" method="POST" class="space-y-4" data-approver-form>
                     @csrf
                     <div>
@@ -670,11 +670,11 @@
                         </button>
                     </div>
                 </form>
-            
+
         </section>
         @endif
 
-        <section class="bg-white rounded-2xl shadow-panel p-6 space-y-4 col-span-12 {{ $userCanConfigure ? 'lg:col-span-8' : 'lg:col-span-12' }}">
+        <section id="approval-flow" style="scroll-margin-top: 6rem;" class="bg-white rounded-2xl shadow-panel p-6 space-y-4 col-span-12 {{ $userCanConfigure ? 'lg:col-span-8' : 'lg:col-span-12' }}">
             <div>
                 <p class="text-xs uppercase tracking-[0.3em] text-slate-400">Aprobadores</p>
                 <h2 class="text-xl font-semibold text-primary-dark">Flujo de aprobación</h2>
@@ -687,9 +687,9 @@
                 @forelse ($latestApprovals as $approval)
                     @php
                         $assignmentDate = $approval->assigned_at ?? $approval->created_at;
-                        $canApproveContract = $currentUser && ((int) $currentUser->id) === (int) $approval->user_id && $approval->estado !== 'aprobado';
+                        $canApproveContract = $approvalActionsAllowed && $approval->is_unlocked && $currentUser && ((int) $currentUser->id) === (int) $approval->user_id && $approval->estado !== 'aprobado';
                         $canRemoveApprover = $currentUser?->hasRole('abogado') && $approval->estado !== 'aprobado';
-                        $canRemindApproval = $canRemindApprovers && $approval->estado === 'pendiente' && ! $approval->aprobado_at && $assignmentDate;
+                        $canRemindApproval = $canRemindApprovers && $approval->estado === 'pendiente' && ! $approval->aprobado_at && $approval->is_unlocked && $approval->unlocked_at;
                         $lastReminder = $approvalReminders->get($approval->id);
                         $reminderBlocked = $lastReminder && $lastReminder->created_at->copy()->addHours(24)->isFuture();
                     @endphp
@@ -737,14 +737,64 @@
                         @if ($assignmentDate)
                             <p class="text-xs text-slate-400 mt-1">Asignado el {{ $assignmentDate->format('d/m/Y H:i') }}</p>
                         @endif
-                        @if (! $approval->aprobado_at && $assignmentDate)
-                            <p class="text-xs text-amber-600 mt-1">Pendiente durante {{ $assignmentDate->diffForHumans(now(), true) }}</p>
+                        @if (! $approval->aprobado_at)
+                            <p class="text-xs text-amber-600 mt-1" title="Solo suma los períodos con el candado abierto. El tiempo anterior a la activación de esta medición no se incluye.">Tiempo habilitado: {{ \App\Models\Approval::formatEnabledSeconds($approval->totalEnabledSeconds()) }}</p>
                         @endif
                         @if ($canRemindApproval && $lastReminder)
                             <p class="text-xs text-slate-500 mt-1">
                                 Recordatorio: {{ $lastReminder->created_at->format('d/m/Y H:i') }} ·
                                 {{ ['sent' => 'Envío aceptado', 'failed' => 'Envío no confirmado', 'sending' => 'Procesando / sin resultado confirmado'][$lastReminder->status] ?? $lastReminder->status }}
                             </p>
+                        @endif
+
+                        <div class="mt-3 flex items-center justify-between gap-2 flex-wrap">
+                            <span class="inline-flex items-center gap-1 text-xs {{ $approval->is_unlocked ? 'text-emerald-700' : 'text-slate-500' }}">
+                                <svg data-approval-lock-icon class="w-4 h-4 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true">
+                                    <rect x="4" y="10" width="16" height="11" rx="2" />
+                                    <path d="{{ $approval->is_unlocked ? 'M8 10V6a4 4 0 0 1 8 0' : 'M8 10V6a4 4 0 0 1 8 0v4' }}" />
+                                </svg>
+                                {{ $approval->is_unlocked ? 'Habilitado para revisar y aprobar' : 'Pendiente de habilitación' }}
+                            </span>
+                            @if ($canManageApprovalAccess && $approval->estado !== 'aprobado' && ! $approval->aprobado_at)
+                                <form method="POST" action="{{ route('contracts.approvals.lock', [$contract, $approval]) }}"
+                                      onsubmit="return confirm('{{ $approval->is_unlocked ? '¿Bloquear a este aprobador?' : '¿Habilitar a este aprobador y notificarle por correo?' }}');">
+                                    @csrf
+                                    @method('PATCH')
+                                    <input type="hidden" name="version_id" value="{{ $latestVersion->id }}">
+                                    <input type="hidden" name="is_unlocked" value="{{ $approval->is_unlocked ? '0' : '1' }}">
+                                    <button type="submit" class="inline-flex items-center gap-1 text-xs font-semibold text-primary"
+                                            title="{{ $approval->is_unlocked ? 'Bloquear participación' : 'Desbloquear y enviar correo' }}">
+                                        <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true">
+                                            <rect x="4" y="10" width="16" height="11" rx="2" />
+                                            @if ($approval->is_unlocked)
+                                                <path d="M8 10V6a4 4 0 0 1 8 0" />
+                                            @else
+                                                <path d="M8 10V6a4 4 0 0 1 8 0v4" />
+                                            @endif
+                                        </svg>
+
+                                    </button>
+                                </form>
+                            @endif
+                        </div>
+                        @if ($canManageApprovalAccess)
+                            <div class="mt-3 flex items-center justify-between gap-2 border-t border-slate-100 pt-2">
+                                <span class="text-xs text-slate-400">Posición {{ $loop->iteration }}</span>
+                                <div class="flex items-center gap-3">
+                                    @foreach (['left' => 'Mover a la izquierda', 'right' => 'Mover a la derecha'] as $direction => $label)
+                                        <form method="POST" action="{{ route('contracts.approvals.position', [$contract, $approval]) }}">
+                                            @csrf
+                                            @method('PATCH')
+                                            <input type="hidden" name="version_id" value="{{ $latestVersion->id }}">
+                                            <input type="hidden" name="direction" value="{{ $direction }}">
+                                            <button type="submit" class="text-primary disabled:opacity-30 disabled:cursor-not-allowed" title="{{ $label }}" aria-label="{{ $label }}"
+                                                    @disabled(($direction === 'left' && $loop->parent->first) || ($direction === 'right' && $loop->parent->last))>
+                                                <span aria-hidden="true">{{ $direction === 'left' ? '←' : '→' }}</span>
+                                            </button>
+                                        </form>
+                                    @endforeach
+                                </div>
+                            </div>
                         @endif
 
                         @if ($canApproveContract)
@@ -760,6 +810,22 @@
                 @empty
                     <p class="text-sm text-slate-500">No hay aprobadores asignados para la versión actual.</p>
                 @endforelse
+            </div>
+            <div class="mt-3 border-t border-slate-100 pt-2 text-xs text-slate-500 space-y-2" aria-label="Significado de los candados">
+                <p class="flex items-start gap-2">
+                    <svg class="w-4 h-4 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true">
+                        <rect x="4" y="10" width="16" height="11" rx="2" />
+                        <path d="M8 10V6a4 4 0 0 1 8 0v4" />
+                    </svg>
+                    <span><strong>Candado cerrado:</strong> pendiente de habilitación por el asesor o un abogado.</span>
+                </p>
+                <p class="flex items-start gap-2">
+                    <svg class="w-4 h-4 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true">
+                        <rect x="4" y="10" width="16" height="11" rx="2" />
+                        <path d="M8 10V6a4 4 0 0 1 8 0" />
+                    </svg>
+                    <span><strong>Candado abierto:</strong> participación habilitada para cargar revisiones y aprobar mientras el contrato lo permita.</span>
+                </p>
             </div>
         </section>
     </div>

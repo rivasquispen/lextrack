@@ -23,7 +23,7 @@
     <div class="wrapper">
         <div class="email-card">
             <div class="header">
-                <h1>{{ $recipientRole === 'approver' ? 'Nuevo contrato para revisar' : 'Contrato en revisión' }}</h1>
+                <h1>{{ $headerTitle ?? ($recipientRole === 'approver' ? 'Nuevo contrato para revisar' : 'Contrato en revisión') }}</h1>
                 <p>{{ $contract->codigo }}</p>
             </div>
             <div class="content">

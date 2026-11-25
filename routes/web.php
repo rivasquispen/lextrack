@@ -126,6 +126,9 @@ Route::middleware('auth')->group(function () {
     Route::post('/contracts/{contract}/approvals/{approval}/approve', [ContractApprovalController::class, 'approve'])
         ->name('contracts.approvals.approve');
 
+    Route::patch('/contracts/{contract}/approvals/{approval}/lock', [\App\Http\Controllers\ApprovalAccessController::class, 'update'])->name('contracts.approvals.lock');
+    Route::patch('/contracts/{contract}/approvals/{approval}/position', [\App\Http\Controllers\ApprovalAccessController::class, 'move'])->name('contracts.approvals.position');
+
     Route::post('/contracts/{contract}/approvals/{approval}/reminder', [ApprovalReminderController::class, 'store'])
         ->name('contracts.approvals.reminder');
 

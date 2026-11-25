@@ -46,7 +46,7 @@ class ContractVersion extends Model
 
     public function approvals(): HasMany
     {
-        return $this->hasMany(Approval::class, 'version_id');
+        return $this->hasMany(Approval::class, 'version_id')->orderBy('approvals.position')->orderBy('approvals.id');
     }
 
     public function histories(): HasMany

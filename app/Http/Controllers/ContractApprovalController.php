@@ -72,6 +72,7 @@ class ContractApprovalController extends Controller
         $newApproverIds = collect();
 
         DB::transaction(function () use ($version, $contract, $approverIds, $signerIds, &$newApproverIds) {
+            Contract::query()->whereKey($contract->id)->lockForUpdate()->firstOrFail();
             $existingApproverIds = $version->approvals()->pluck('user_id')->all();
             $newApproverIds = $approverIds->diff($existingApproverIds)->values();
 
@@ -179,12 +180,18 @@ class ContractApprovalController extends Controller
                 return;
             }
 
+            if (! $approval->is_unlocked) {
+                throw ValidationException::withMessages(['approval' => 'Tu participación está bloqueada. El asesor asignado o un abogado debe habilitarla.']);
+            }
+
             if (! in_array($contract->estado, [Contract::STATUS_APPROVAL, Contract::STATUS_OBSERVED], true)) {
                 throw ValidationException::withMessages(['approval' => 'El contrato no está disponible para registrar aprobaciones.']);
             }
 
+            $approvedAt = now();
+            $approval->pauseEnabledClock($approvedAt);
             $approval->estado = 'aprobado';
-            $approval->aprobado_at = now();
+            $approval->aprobado_at = $approvedAt;
             $approval->save();
             $approvalChanged = true;
 

@@ -29,7 +29,7 @@ class ApproverAssignedMail extends Mailable
         };
 
         $introLine = match ($this->recipientRole) {
-            'approver' => 'Has sido designado como aprobador para este contrato. Revisa el documento y registra tu decisión.',
+            'approver' => 'Has sido designado como aprobador para este contrato. Tu participación comienza bloqueada. Recibirás un correo cuando el asesor o un abogado habilite tu revisión y aprobación.',
             'creator' => 'Los aprobadores ya fueron asignados y el contrato pasó a estado de revisión.',
             'lawyer' => 'Se asignaron aprobadores a este contrato. Puedes ingresar para seguir el flujo de revisión.',
             default => 'Hay una actualización relacionada a este contrato.',

@@ -99,7 +99,7 @@ class ApprovalReopeningService
                 'created_at' => now(),
             ]);
 
-            $approval->update(['estado' => 'pendiente', 'aprobado_at' => null]);
+            $approval->update(['estado' => 'pendiente', 'aprobado_at' => null, 'unlocked_at' => $approval->is_unlocked ? now() : null]);
 
             return $event;
         });

@@ -11,7 +11,12 @@
             <p>Hola, {{ $snapshot['recipient_name'] }}:</p>
             <p><strong>{{ $snapshot['sender_name'] }}</strong> te recuerda que el contrato
                 <strong>{{ $snapshot['contract_code'] }} — {{ $snapshot['contract_title'] }}</strong>
-                está pendiente de tu aprobación desde hace <strong>{{ $elapsed }}</strong>.</p>
+                @if (array_key_exists('enabled_seconds', $snapshot))
+                    está pendiente de tu aprobación. Tu participación acumula <strong>{{ $elapsed }}</strong> de tiempo habilitado.
+                @else
+                    está pendiente de tu aprobación desde hace <strong>{{ $elapsed }}</strong>.
+                @endif
+            </p>
             <p>Ingresa a Lextrack para revisar el documento y registrar tu decisión.</p>
             <p style="text-align: center; margin: 30px 0;">
                 <a href="{{ $ctaUrl }}" style="display: inline-block; padding: 12px 24px; background: #043965; border-radius: 8px; color: #ffffff; text-decoration: none;">Revisar contrato</a>

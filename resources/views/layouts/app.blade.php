@@ -195,20 +195,6 @@
         </div>
 
         @stack('modals')
-
-<aside class="signature signature-bottom">
-    <div class="signature-content">
-        <div class="signature-logo">
-            <a href="https://humanovalab.com" target="_blank">
-                <img src="https://confia.pe/wp-content/uploads/2024/02/humanova-logo-1.svg" alt="humanova">
-            </a>
-        </div>
-        <div class="signature-slogan">
-            <img src="https://confia.pe/wp-content/uploads/2024/02/humanova-slogan.svg" alt="humanova slogan">
-        </div>
-    </div>
-</aside>
-
         @stack('scripts')
     </body>
 </html>

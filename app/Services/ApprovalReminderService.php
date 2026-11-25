@@ -67,10 +67,11 @@ class ApprovalReminderService
                 $this->reject('El aprobador no tiene un correo válido para recibir el recordatorio.');
             }
             $assignedAt = $approval->assigned_at ?? $approval->created_at;
-            if (! $assignedAt || $assignedAt->isFuture()) {
-                $this->reject('La aprobación no tiene una fecha de asignación válida para calcular el tiempo pendiente.');
+            if (! $approval->is_unlocked || ! $approval->unlocked_at || $approval->unlocked_at->isFuture()) {
+                $this->reject('El aprobador debe estar habilitado y tener una fecha de habilitación válida para recibir el recordatorio.');
             }
-            $days = (int) floor($assignedAt->diffInDays(now()));
+            $seconds = $approval->totalEnabledSeconds();
+            $days = intdiv($seconds, 86400);
 
             $reminder = ApprovalReminder::create([
                 'contract_id' => $contract->id, 'version_id' => $version->id, 'approval_id' => $approval->id,
@@ -80,7 +81,8 @@ class ApprovalReminderService
                     'contract_code' => $contract->codigo, 'contract_title' => $contract->titulo,
                     'sender_name' => trim((string) $sender->nombre) ?: $sender->email,
                     'recipient_name' => trim((string) $recipient->nombre) ?: $recipient->email,
-                    'recipient_email' => $recipient->email, 'assigned_at' => $assignedAt->toISOString(),
+                    'recipient_email' => $recipient->email, 'assigned_at' => $assignedAt?->toISOString(),
+                    'enabled_seconds' => $seconds, 'unlocked_at' => $approval->unlocked_at->toISOString(),
                 ],
             ]);
             if (! $reminder->exists) {
